@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="dashboard-header">
+    <h1>Dashboard</h1>
+    <p class="subtitle">Overview of your reports and activities</p>
+</div>
+
+<div class="metrics-grid">
+    <div class="metric-card glass-panel">
+        <div class="metric-icon">📄</div>
+        <div class="metric-info">
+            <h3>Total Reports</h3>
+            <p class="metric-value">{{ total_reports }}</p>
+        </div>
+    </div>
+    <div class="metric-card glass-panel">
+        <div class="metric-icon">🔥</div>
+        <div class="metric-info">
+            <h3>Today's Submissions</h3>
+            <p class="metric-value">{{ today_reports }}</p>
+        </div>
+    </div>
+    
+    {% if current_user.has_permission('view_all_reports') or current_user.has_permission('view_dept_reports') %}
+    <div class="metric-card glass-panel">
+        <div class="metric-icon">👥</div>
+        <div class="metric-info">
+            <h3>Active Employees</h3>
+            <p class="metric-value">{{ unique_employees }}</p>
+        </div>
+    </div>
+    <div class="metric-card glass-panel">
+        <div class="metric-icon">🏢</div>
+        <div class="metric-info">
+            <h3>Departments</h3>
+            <p class="metric-value">{{ total_departments }}</p>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<div class="dashboard-actions mt-4">
+    <div class="action-card glass-panel text-center">
+        <h2>Quick Actions</h2>
+        <div class="action-buttons">
+            {% if current_user.has_permission('submit_report') %}
+            <a href="{{ url_for('submit') }}" class="btn btn-primary">Submit New Report</a>
+            {% endif %}
+            <a href="{{ url_for('view_reports') }}" class="btn btn-secondary">Browse Reports</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

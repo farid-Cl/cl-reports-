@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-header d-flex justify-between align-center">
+    <div>
+        <a href="{{ url_for('view_reports') }}" class="back-link">&larr; Back to Reports</a>
+        <h1>Report Details</h1>
+    </div>
+    <div class="d-flex gap-2">
+        {% if current_user.has_permission('approve_reports') %}
+        <form action="{{ url_for('update_report_status', id=report.id) }}" method="POST">
+            <input type="hidden" name="status" value="Approved">
+            <button type="submit" class="btn btn-sm btn-outline text-success" {% if report.status == 'Approved' %}disabled{% endif %}>Approve</button>
+        </form>
+        <form action="{{ url_for('update_report_status', id=report.id) }}" method="POST">
+            <input type="hidden" name="status" value="Rejected">
+            <button type="submit" class="btn btn-sm btn-outline text-danger" {% if report.status == 'Rejected' %}disabled{% endif %}>Reject</button>
+        </form>
+        {% endif %}
+        {% if current_user.has_permission('delete_reports') %}
+        <form action="{{ url_for('delete_report', id=report.id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this report?');">
+            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+<div class="report-detail-card glass-panel">
+    <div class="report-detail-header">
+        <div class="author-info">
+            <div class="author-avatar">{{ report.employee_name[0] }}</div>
+            <div>
+                <h2>{{ report.employee_name }}</h2>
+                <span class="badge badge-department">{{ report.department }}</span>
+            </div>
+        </div>
+        <div class="submission-meta">
+            <div class="meta-item">
+                <span class="meta-label">Submitted on:</span>
+                <span class="meta-value">{{ report.date_submitted.strftime('%B %d, %Y at %I:%M %p') }} UTC</span>
+            </div>
+            <div class="meta-item">
+                <span class="meta-label">System User:</span>
+                <span class="meta-value">{{ report.user.username }}</span>
+            </div>
+            <div class="meta-item">
+                <span class="meta-label">Status:</span>
+                <span class="badge badge-status-{{ report.status|lower }}">{{ report.status }}</span>
+            </div>
+        </div>
+    </div>
+    
+    <div class="report-content">
+        <h3>Report Content</h3>
+        <div class="text-content">
+            {{ report.report_text | replace('\n', '<br>') | safe }}
+        </div>
+    </div>
+    
+    {% if images %}
+    <div class="report-attachments">
+        <h3>Attachments ({{ images|length }})</h3>
+        <div class="attachments-grid">
+            {% for img in images %}
+            <a href="{{ url_for('uploaded_file', filename=img) }}" target="_blank" class="attachment-item">
+                <img src="{{ url_for('uploaded_file', filename=img) }}" alt="Attachment" loading="lazy">
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

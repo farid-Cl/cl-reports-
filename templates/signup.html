@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="auth-container">
+    <div class="auth-card glass-panel">
+        <h1 class="auth-title">Create Account</h1>
+        <p class="auth-subtitle">Join Nexus Reports</p>
+        <form method="POST" class="auth-form" id="signupForm">
+            <div class="form-group">
+                <label for="full_name">Full Name</label>
+                <input type="text" id="full_name" name="full_name" required placeholder="Jane Doe">
+            </div>
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" required placeholder="janedoe">
+            </div>
+            <div class="form-group">
+                <label for="email">Email Address</label>
+                <input type="email" id="email" name="email" required placeholder="you@example.com">
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required placeholder="••••••••" minlength="6">
+            </div>
+            <button type="submit" class="btn btn-primary btn-block">Sign Up</button>
+        </form>
+        <p class="auth-footer">Already have an account? <a href="{{ url_for('login') }}">Log In</a></p>
+    </div>
+</div>
+{% endblock %}

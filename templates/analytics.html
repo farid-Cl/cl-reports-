@@ -1,0 +1,233 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-header">
+    <h1>Analytics Dashboard</h1>
+    <p class="subtitle">Insights and trends across all departments</p>
+</div>
+
+<div class="charts-grid">
+    <div class="chart-card glass-panel">
+        <h3>Reports by Department</h3>
+        <div class="chart-container">
+            <canvas id="deptChart"></canvas>
+        </div>
+    </div>
+    
+    <div class="chart-card glass-panel">
+        <h3>7-Day Submission Trend</h3>
+        <div class="chart-container">
+            <canvas id="trendChart"></canvas>
+        </div>
+    </div>
+    
+    <div class="chart-card glass-panel full-width">
+        <h3>Top Active Employees</h3>
+        <div class="chart-container" style="height: 300px;">
+            <canvas id="empChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<div class="page-header mt-4">
+    <h2>Employee Deep-Dive</h2>
+    <p class="subtitle">Detailed analytics for individual employees</p>
+</div>
+
+<div class="glass-panel mb-4 filter-panel">
+    <div class="form-group mb-0" style="max-width: 400px;">
+        <label for="employeeSelect">Select Employee</label>
+        <select id="employeeSelect" class="form-select">
+            <option value="" disabled selected>Select an employee...</option>
+            {% for name in employee_names %}
+            <option value="{{ name }}">{{ name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+</div>
+
+<div id="employeeAnalyticsContainer" style="display: none;">
+    <div class="metrics-grid mb-4">
+        <div class="metric-card glass-panel">
+            <div class="metric-info">
+                <h3>Total Reports</h3>
+                <p class="metric-value" id="empTotalReports">-</p>
+            </div>
+        </div>
+        <div class="metric-card glass-panel">
+            <div class="metric-info">
+                <h3>Approved</h3>
+                <p class="metric-value text-success" id="empApproved">-</p>
+            </div>
+        </div>
+        <div class="metric-card glass-panel">
+            <div class="metric-info">
+                <h3>Rejected</h3>
+                <p class="metric-value text-danger" id="empRejected">-</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="charts-grid">
+        <div class="chart-card glass-panel">
+            <h3>Status Breakdown</h3>
+            <div class="chart-container">
+                <canvas id="empStatusChart"></canvas>
+            </div>
+        </div>
+        <div class="chart-card glass-panel">
+            <h3>7-Day Trend</h3>
+            <div class="chart-container">
+                <canvas id="empTrendChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const deptLabels = {{ dept_labels | safe }};
+        const deptData = {{ dept_data | safe }};
+        const empLabels = {{ emp_labels | safe }};
+        const empData = {{ emp_data | safe }};
+        const trendLabels = {{ trend_labels | safe }};
+        const trendData = {{ trend_data | safe }};
+        
+        Chart.defaults.color = '#e2e8f0';
+        Chart.defaults.font.family = 'Inter, sans-serif';
+
+        // Dept Pie Chart
+        new Chart(document.getElementById('deptChart'), {
+            type: 'doughnut',
+            data: {
+                labels: deptLabels,
+                datasets: [{
+                    data: deptData,
+                    backgroundColor: ['#3b82f6', '#8b5cf6', '#ec4899', '#10b981', '#f59e0b', '#6366f1'],
+                    borderWidth: 0,
+                    hoverOffset: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom' }
+                }
+            }
+        });
+
+        // Trend Bar Chart
+        new Chart(document.getElementById('trendChart'), {
+            type: 'bar',
+            data: {
+                labels: trendLabels,
+                datasets: [{
+                    label: 'Submissions',
+                    data: trendData,
+                    backgroundColor: '#8b5cf6',
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.1)' } },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+
+        // Emp Progress/Bar Chart
+        new Chart(document.getElementById('empChart'), {
+            type: 'bar',
+            data: {
+                labels: empLabels,
+                datasets: [{
+                    label: 'Reports Submitted',
+                    data: empData,
+                    backgroundColor: '#3b82f6',
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.1)' } },
+                    y: { grid: { display: false } }
+                }
+            }
+        });
+
+        // Employee Deep-Dive Logic
+        const employeeSelect = document.getElementById('employeeSelect');
+        const empContainer = document.getElementById('employeeAnalyticsContainer');
+        let empStatusChartInstance = null;
+        let empTrendChartInstance = null;
+
+        if (employeeSelect) {
+            employeeSelect.addEventListener('change', function() {
+                const empName = this.value;
+                if(!empName) return;
+
+                fetch(`/api/analytics/employee/${encodeURIComponent(empName)}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        if(data.error) {
+                            alert(data.error);
+                            return;
+                        }
+                        
+                        empContainer.style.display = 'block';
+                        document.getElementById('empTotalReports').textContent = data.total_reports;
+                        document.getElementById('empApproved').textContent = data.status_breakdown.Approved;
+                        document.getElementById('empRejected').textContent = data.status_breakdown.Rejected;
+
+                        // Update Status Pie Chart
+                        if(empStatusChartInstance) empStatusChartInstance.destroy();
+                        empStatusChartInstance = new Chart(document.getElementById('empStatusChart'), {
+                            type: 'doughnut',
+                            data: {
+                                labels: ['Approved', 'Rejected', 'Submitted'],
+                                datasets: [{
+                                    data: [data.status_breakdown.Approved, data.status_breakdown.Rejected, data.status_breakdown.Submitted],
+                                    backgroundColor: ['#10b981', '#ef4444', '#f59e0b'],
+                                    borderWidth: 0
+                                }]
+                            },
+                            options: { responsive: true, maintainAspectRatio: false }
+                        });
+
+                        // Update Trend Bar Chart
+                        if(empTrendChartInstance) empTrendChartInstance.destroy();
+                        empTrendChartInstance = new Chart(document.getElementById('empTrendChart'), {
+                            type: 'bar',
+                            data: {
+                                labels: data.trend_labels,
+                                datasets: [{
+                                    label: 'Submissions',
+                                    data: data.trend_data,
+                                    backgroundColor: '#3b82f6',
+                                    borderRadius: 4
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                scales: {
+                                    y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.1)' } },
+                                    x: { grid: { display: false } }
+                                }
+                            }
+                        });
+                    })
+                    .catch(err => console.error('Error fetching employee data:', err));
+            });
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-header">
+    <h1>System Audit Log</h1>
+    <p class="subtitle">Chronological record of all report submissions</p>
+</div>
+
+<div class="glass-panel">
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Date/Time (UTC)</th>
+                    <th>Report ID</th>
+                    <th>System User</th>
+                    <th>Employee Name</th>
+                    <th>Department</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for report, user in pagination.items %}
+                <tr>
+                    <td>{{ report.date_submitted.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                    <td>#{{ report.id }}</td>
+                    <td>{{ user.username }} <span class="text-muted">({{ user.email }})</span></td>
+                    <td>{{ report.employee_name }}</td>
+                    <td><span class="badge badge-department">{{ report.department }}</span></td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5" class="text-center py-4">No audit logs found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% if pagination.pages > 1 %}
+<div class="pagination mt-4">
+    {% if pagination.has_prev %}
+        <a href="{{ url_for('audit_log', page=pagination.prev_num) }}" class="page-link">&laquo; Prev</a>
+    {% endif %}
+    
+    <span class="page-link active">Page {{ pagination.page }} of {{ pagination.pages }}</span>
+    
+    {% if pagination.has_next %}
+        <a href="{{ url_for('audit_log', page=pagination.next_num) }}" class="page-link">Next &raquo;</a>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}
