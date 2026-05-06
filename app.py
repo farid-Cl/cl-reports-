@@ -40,8 +40,8 @@ login_manager.login_message_category = 'info'
 
 # ROLES AND PERMISSIONS
 ROLES = {
-    'admin': ['view_all_reports', 'view_dept_reports', 'view_own_reports', 'submit_report', 'view_analytics', 'manage_users', 'manage_departments', 'export_data', 'delete_reports', 'approve_reports'],
-    'manager': ['view_dept_reports', 'view_analytics', 'export_data', 'approve_reports'],
+    'admin': ['view_all_reports', 'view_dept_reports', 'view_own_reports', 'submit_report', 'view_analytics', 'manage_users', 'manage_departments', 'export_data', 'delete_reports', 'approve_reports', 'manage_mistakes', 'manage_holidays'],
+    'manager': ['view_dept_reports', 'view_analytics', 'export_data', 'approve_reports', 'manage_mistakes'],
     'employee': ['view_own_reports', 'submit_report'],
     'viewer': ['view_all_reports', 'view_analytics']
 }
@@ -75,6 +75,21 @@ class Report(db.Model):
     images = db.Column(db.Text) # JSON string array
     date_submitted = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     user = db.relationship('User', backref=db.backref('reports', lazy=True))
+
+class Holiday(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    date = db.Column(db.Date, unique=True, nullable=False)
+    description = db.Column(db.String(200))
+
+class MistakeNote(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    admin_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    description = db.Column(db.Text, nullable=False)
+    date_logged = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    
+    employee = db.relationship('User', foreign_keys=[employee_id], backref=db.backref('mistakes', lazy=True))
+    admin = db.relationship('User', foreign_keys=[admin_id])
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -126,8 +141,25 @@ def index():
         unique_employees = 1
         total_departments = 0
 
+    is_holiday = Holiday.query.filter_by(date=today).first() is not None
+    due_employees = []
+    is_due = False
+
+    if not is_holiday:
+        submitted_today = set(r.user_id for r in Report.query.filter(db.func.date(Report.date_submitted) == today).all())
+        
+        if current_user.has_permission('view_all_reports') or current_user.has_permission('view_dept_reports'):
+            employees = User.query.filter_by(role='employee').all()
+            for emp in employees:
+                if emp.id not in submitted_today:
+                    due_employees.append(emp)
+        elif current_user.role == 'employee':
+            if current_user.id not in submitted_today:
+                is_due = True
+
     return render_template('index.html', total_reports=total_reports, today_reports=today_reports, 
-                           unique_employees=unique_employees, total_departments=total_departments)
+                           unique_employees=unique_employees, total_departments=total_departments,
+                           is_holiday=is_holiday, due_employees=due_employees, is_due=is_due)
 
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
@@ -449,6 +481,70 @@ def delete_user(id):
         db.session.commit()
         flash("User deleted.", 'success')
     return redirect(url_for('admin_users'))
+
+@app.route('/admin/holidays', methods=['GET', 'POST'])
+@permission_required('manage_holidays')
+def admin_holidays():
+    if request.method == 'POST':
+        date_str = request.form.get('date')
+        description = request.form.get('description')
+        if date_str:
+            try:
+                date_val = datetime.strptime(date_str, '%Y-%m-%d').date()
+                if Holiday.query.filter_by(date=date_val).first():
+                    flash('Holiday already exists for this date.', 'danger')
+                else:
+                    holiday = Holiday(date=date_val, description=description)
+                    db.session.add(holiday)
+                    db.session.commit()
+                    flash('Holiday added.', 'success')
+            except ValueError:
+                flash('Invalid date format.', 'danger')
+        return redirect(url_for('admin_holidays'))
+    holidays = Holiday.query.order_by(Holiday.date.desc()).all()
+    return render_template('admin_holidays.html', holidays=holidays)
+
+@app.route('/admin/holidays/<int:id>/delete', methods=['POST'])
+@permission_required('manage_holidays')
+def delete_holiday(id):
+    holiday = db.session.get(Holiday, id)
+    if holiday:
+        db.session.delete(holiday)
+        db.session.commit()
+        flash('Holiday removed.', 'success')
+    return redirect(url_for('admin_holidays'))
+
+@app.route('/admin/mistakes', methods=['GET', 'POST'])
+@permission_required('manage_mistakes')
+def admin_mistakes():
+    if request.method == 'POST':
+        employee_id = request.form.get('employee_id')
+        description = request.form.get('description')
+        if employee_id and description:
+            mistake = MistakeNote(employee_id=employee_id, admin_id=current_user.id, description=description)
+            db.session.add(mistake)
+            db.session.commit()
+            flash('Mistake logged.', 'success')
+        return redirect(url_for('admin_mistakes'))
+        
+    employee_filter = request.args.get('employee_id', '')
+    query = MistakeNote.query
+    if employee_filter:
+        query = query.filter_by(employee_id=employee_filter)
+        
+    mistakes = query.order_by(MistakeNote.date_logged.desc()).all()
+    employees = User.query.filter_by(role='employee').all()
+    return render_template('admin_mistakes.html', mistakes=mistakes, employees=employees, employee_filter=employee_filter)
+
+@app.route('/admin/mistakes/<int:id>/delete', methods=['POST'])
+@permission_required('manage_mistakes')
+def delete_mistake(id):
+    mistake = db.session.get(MistakeNote, id)
+    if mistake:
+        db.session.delete(mistake)
+        db.session.commit()
+        flash('Mistake log deleted.', 'success')
+    return redirect(url_for('admin_mistakes'))
 
 @app.route('/api/reports')
 def api_reports():

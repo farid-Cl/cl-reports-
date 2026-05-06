@@ -5,6 +5,17 @@
     <p class="subtitle">Overview of your reports and activities</p>
 </div>
 
+{% if is_due and not is_holiday %}
+<div class="alert mb-4" style="background: rgba(239, 68, 68, 0.2); border-left: 4px solid var(--danger-color); padding: 1rem;">
+    <strong>Action Required:</strong> You have a daily report due today. Please submit it before the end of the day.
+</div>
+{% endif %}
+{% if is_holiday %}
+<div class="alert mb-4" style="background: rgba(59, 130, 246, 0.2); border-left: 4px solid var(--primary-color); padding: 1rem;">
+    <strong>Holiday:</strong> Today is a holiday. Daily reports are not required today.
+</div>
+{% endif %}
+
 <div class="metrics-grid">
     <div class="metric-card glass-panel">
         <div class="metric-icon">📄</div>
@@ -39,15 +50,37 @@
     {% endif %}
 </div>
 
-<div class="dashboard-actions mt-4">
+<div class="dashboard-actions mt-4" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
     <div class="action-card glass-panel text-center">
         <h2>Quick Actions</h2>
-        <div class="action-buttons">
+        <div class="action-buttons mt-3">
             {% if current_user.has_permission('submit_report') %}
             <a href="{{ url_for('submit') }}" class="btn btn-primary">Submit New Report</a>
             {% endif %}
             <a href="{{ url_for('view_reports') }}" class="btn btn-secondary">Browse Reports</a>
         </div>
     </div>
+    
+    {% if current_user.has_permission('view_all_reports') or current_user.has_permission('view_dept_reports') %}
+    <div class="action-card glass-panel">
+        <h2>Due Reports Today</h2>
+        <div class="mt-3">
+            {% if is_holiday %}
+                <p style="color: #94a3b8;">Today is marked as a Holiday. No reports are due.</p>
+            {% elif due_employees %}
+                <ul style="list-style: none; padding: 0; margin: 0; max-height: 200px; overflow-y: auto;">
+                    {% for emp in due_employees %}
+                    <li class="d-flex justify-between align-center" style="padding: 0.75rem 0; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                        <span><strong>{{ emp.full_name }}</strong> ({{ emp.username }})</span>
+                        <span class="badge badge-status-rejected">Due</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="text-success">All employees have submitted their reports today!</p>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}

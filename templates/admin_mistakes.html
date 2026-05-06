@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-header">
+    <h1>Mistake Tracker</h1>
+    <p class="subtitle">Log and track employee mistakes for future review</p>
+</div>
+
+<div class="glass-panel mb-4">
+    <h3>Log New Mistake</h3>
+    <form method="POST" action="{{ url_for('admin_mistakes') }}">
+        <div class="form-group">
+            <label for="employee_id">Select Employee</label>
+            <select name="employee_id" id="employee_id" required>
+                <option value="" disabled selected>Select an employee...</option>
+                {% for emp in employees %}
+                <option value="{{ emp.id }}">{{ emp.full_name }} ({{ emp.username }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="description">Mistake Description</label>
+            <textarea name="description" id="description" rows="3" placeholder="Describe the mistake..." required></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">Log Mistake</button>
+    </form>
+</div>
+
+<div class="glass-panel">
+    <h3>Mistake History</h3>
+    <form method="GET" action="{{ url_for('admin_mistakes') }}" class="mb-3 d-flex gap-2">
+        <select name="employee_id" class="form-select" style="max-width: 300px;">
+            <option value="">All Employees</option>
+            {% for emp in employees %}
+            <option value="{{ emp.id }}" {% if employee_filter|string == emp.id|string %}selected{% endif %}>{{ emp.full_name }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-secondary">Filter</button>
+        <a href="{{ url_for('admin_mistakes') }}" class="btn btn-text">Clear</a>
+    </form>
+
+    <div class="reports-grid" style="grid-template-columns: 1fr;">
+        {% for mistake in mistakes %}
+        <div class="report-card glass-panel" style="border-left: 4px solid var(--danger-color);">
+            <div class="report-header">
+                <div class="report-meta">
+                    <span class="badge badge-department">{{ mistake.employee.full_name }}</span>
+                    <span class="report-date">{{ mistake.date_logged.strftime('%b %d, %Y - %H:%M') }}</span>
+                </div>
+                <form action="{{ url_for('delete_mistake', id=mistake.id) }}" method="POST" onsubmit="return confirm('Delete this record?');">
+                    <button type="submit" class="btn-icon text-danger" title="Delete">🗑️</button>
+                </form>
+            </div>
+            <p class="mt-2">{{ mistake.description }}</p>
+            <div class="text-muted" style="font-size: 0.8rem; margin-top: 10px;">Logged by: {{ mistake.admin.username }}</div>
+        </div>
+        {% else %}
+        <p class="text-center text-muted">No mistakes found.</p>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

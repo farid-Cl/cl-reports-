@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-header">
+    <h1>Manage Holidays</h1>
+    <p class="subtitle">Set dates where reports are not required</p>
+</div>
+
+<div class="glass-panel mb-4">
+    <form method="POST" action="{{ url_for('admin_holidays') }}">
+        <div class="form-group">
+            <label for="date">Holiday Date</label>
+            <input type="date" name="date" id="date" required>
+        </div>
+        <div class="form-group">
+            <label for="description">Description (optional)</label>
+            <input type="text" name="description" id="description" placeholder="e.g. Independence Day">
+        </div>
+        <button type="submit" class="btn btn-primary">Add Holiday</button>
+    </form>
+</div>
+
+<div class="glass-panel">
+    <h3>Upcoming Holidays</h3>
+    <table class="table w-100 mt-3" style="text-align: left; border-collapse: collapse;">
+        <thead>
+            <tr>
+                <th style="padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.1);">Date</th>
+                <th style="padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.1);">Description</th>
+                <th style="padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.1);">Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for holiday in holidays %}
+            <tr>
+                <td style="padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.1);">{{ holiday.date.strftime('%B %d, %Y') }}</td>
+                <td style="padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.1);">{{ holiday.description }}</td>
+                <td style="padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                    <form action="{{ url_for('delete_holiday', id=holiday.id) }}" method="POST" onsubmit="return confirm('Remove this holiday?');">
+                        <button type="submit" class="btn-icon text-danger" title="Remove">✕</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="3" class="text-center" style="padding: 1rem;">No holidays set.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

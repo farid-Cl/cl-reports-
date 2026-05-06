@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nexus Reports</title>
+    <title>CL Reports Manager</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -11,7 +11,7 @@
 <body>
     <nav class="navbar">
         <div class="nav-brand">
-            <a href="{{ url_for('index') }}">Nexus Reports</a>
+            <a href="{{ url_for('index') }}">CL Reports Manager</a>
         </div>
         <div class="nav-links" id="navLinks">
             {% if current_user.is_authenticated %}
@@ -25,6 +25,14 @@
                 
                 {% if current_user.has_permission('view_analytics') %}
                 <a href="{{ url_for('analytics') }}" class="nav-link">Analytics</a>
+                {% endif %}
+                
+                {% if current_user.has_permission('manage_mistakes') %}
+                <a href="{{ url_for('admin_mistakes') }}" class="nav-link">Mistakes</a>
+                {% endif %}
+                
+                {% if current_user.has_permission('manage_holidays') %}
+                <a href="{{ url_for('admin_holidays') }}" class="nav-link">Holidays</a>
                 {% endif %}
                 
                 {% if current_user.has_permission('manage_users') %}
