@@ -139,6 +139,11 @@ def from_json_filter(value):
 def health():
     return jsonify({'status': 'healthy'}), 200
 
+@app.errorhandler(500)
+def internal_error(error):
+    import traceback
+    return f"<pre>Internal Server Error:\n{traceback.format_exc()}</pre>", 500
+
 @app.context_processor
 def inject_now():
     return {'now': datetime.now(timezone.utc)}
