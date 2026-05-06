@@ -186,13 +186,52 @@ def index():
     else:
         recent_activity = Report.query.filter_by(user_id=current_user.id).order_by(Report.date_submitted.desc()).limit(5).all()
 
+    # 7-day chart data
+    chart_labels = []
+    chart_data = []
+    for i in range(6, -1, -1):
+        day = today - timedelta(days=i)
+        if current_user.has_permission('view_all_reports') or current_user.has_permission('view_dept_reports'):
+            count = Report.query.filter(db.func.date(Report.date_submitted) == day).count()
+        else:
+            count = Report.query.filter_by(user_id=current_user.id).filter(db.func.date(Report.date_submitted) == day).count()
+        chart_labels.append(day.strftime('%b %d'))
+        chart_data.append(count)
+
+    # Department performance
+    dept_performance = []
+    if current_user.has_permission('view_all_reports') or current_user.has_permission('view_dept_reports'):
+        from calendar import monthrange
+        first_day = today.replace(day=1)
+        last_month_end = first_day - timedelta(days=1)
+        last_month_start = last_month_end.replace(day=1)
+        depts = Department.query.all()
+        for dept in depts:
+            this_month = Report.query.filter(
+                Report.department == dept.name,
+                db.func.date(Report.date_submitted) >= first_day
+            ).count()
+            last_month = Report.query.filter(
+                Report.department == dept.name,
+                db.func.date(Report.date_submitted) >= last_month_start,
+                db.func.date(Report.date_submitted) <= last_month_end
+            ).count()
+            if last_month > 0:
+                change = round(((this_month - last_month) / last_month) * 100)
+            else:
+                change = 100 if this_month > 0 else 0
+            dept_performance.append({'name': dept.name, 'count': this_month, 'change': change})
+        dept_performance.sort(key=lambda x: x['count'], reverse=True)
+
     return render_template('index.html',
                            total_reports=total_reports, yesterday_total=yesterday_total,
                            today_reports=today_reports, yesterday_today=yesterday_today,
                            unique_employees=unique_employees, yesterday_employees=yesterday_employees,
                            total_departments=total_departments,
                            is_holiday=is_holiday, due_employees=due_employees, is_due=is_due,
-                           recent_activity=recent_activity)
+                           recent_activity=recent_activity,
+                           chart_labels=chart_labels, chart_data=chart_data,
+                           dept_performance=dept_performance)
 
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():

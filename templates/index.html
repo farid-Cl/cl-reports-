@@ -1,217 +1,294 @@
 {% extends 'base.html' %}
 {% block content %}
 
-{% if is_due and not is_holiday %}
-<div class="due-alert">⚠️ <strong>Action Required:</strong> You have a daily report due today!</div>
-{% endif %}
-{% if is_holiday %}
-<div class="holiday-alert">🎉 <strong>Holiday:</strong> Today is a holiday. No reports required.</div>
-{% endif %}
-
-<!-- Header -->
-<div class="dash-header">
-    <div>
+<!-- Dashboard Header -->
+<div class="dash-header-new">
+    <div class="welcome-section">
         <h1>Welcome back, {{ current_user.full_name or current_user.username }} 👋</h1>
-        <p class="dash-subtitle">Overview of your reports and activities</p>
+        <p class="dash-subtitle">Here's what's happening with your reports today.</p>
     </div>
-    <div class="dash-date">
-        <span>📅</span> {{ now.strftime('%b %d, %Y') }}
+    <div class="dash-date-picker">
+        <span class="calendar-icon">📅</span>
+        <input type="text" value="{{ now.strftime('%b %d, %Y') }}" id="dashDatePicker" readonly>
+        <span class="chevron-down">⌄</span>
     </div>
 </div>
 
-<!-- Metric Cards -->
+<!-- Main Metrics Grid -->
 <div class="metrics-grid">
-    <!-- Total Reports -->
-    <div class="metric-card">
+    <div class="metric-card neon-purple">
         <div class="metric-top">
-            <div class="metric-icon-wrap" style="background: linear-gradient(135deg,#6366f1,#8b5cf6);">📄</div>
-            <span class="metric-dots">⋯</span>
+            <div class="metric-icon-box">📄</div>
+            <div class="metric-menu">⋮</div>
         </div>
-        <div class="metric-label">Total Reports</div>
-        <div class="metric-value">{{ total_reports }}</div>
-        <div class="metric-trend">
-            {% if yesterday_total == 0 and total_reports > 0 %}
-                <span class="trend-up">↑ New</span> from yesterday
-            {% elif yesterday_total > 0 %}
-                <span class="trend-up">↑ {{ "%.0f"|format(((total_reports - yesterday_total) / yesterday_total * 100)|abs) }}%</span> from yesterday
-            {% else %}
-                <span class="trend-neutral">No change</span> from yesterday
-            {% endif %}
-            <svg class="sparkline" viewBox="0 0 60 20"><polyline points="0,18 15,14 30,10 45,6 60,2" fill="none" stroke="#6366f1" stroke-width="2"/></svg>
+        <div class="metric-info">
+            <div class="metric-title">Total Reports</div>
+            <div class="metric-count">{{ total_reports }}</div>
+        </div>
+        <div class="metric-footer">
+            {% if yesterday_total > 0 %}
+            <span class="trend up">↑ {{ "%.0f"|format(((total_reports - yesterday_total) / yesterday_total * 100)|abs) }}%</span> 
+            {% else %}<span class="trend up">↑ 100%</span>{% endif %}
+            <span class="trend-label">from yesterday</span>
+            <div class="spark-wrap"><canvas id="sparkline1"></canvas></div>
         </div>
     </div>
 
-    <!-- Today's Submissions -->
-    <div class="metric-card">
+    <div class="metric-card neon-orange">
         <div class="metric-top">
-            <div class="metric-icon-wrap" style="background: linear-gradient(135deg,#f59e0b,#ef4444);">🔥</div>
-            <span class="metric-dots">⋯</span>
+            <div class="metric-icon-box">🔥</div>
+            <div class="metric-menu">⋮</div>
         </div>
-        <div class="metric-label">Today's Submissions</div>
-        <div class="metric-value">{{ today_reports }}</div>
-        <div class="metric-trend">
-            {% if yesterday_today == 0 and today_reports > 0 %}
-                <span class="trend-up">↑ 100%</span> from yesterday
-            {% elif yesterday_today > 0 and today_reports > yesterday_today %}
-                <span class="trend-up">↑ {{ "%.0f"|format(((today_reports - yesterday_today) / yesterday_today * 100)) }}%</span> from yesterday
-            {% elif yesterday_today == today_reports %}
-                <span class="trend-neutral">Same</span> as yesterday
-            {% else %}
-                <span class="trend-neutral">No change</span> from yesterday
-            {% endif %}
-            <svg class="sparkline" viewBox="0 0 60 20"><polyline points="0,18 15,16 30,12 45,8 60,4" fill="none" stroke="#f59e0b" stroke-width="2"/></svg>
+        <div class="metric-info">
+            <div class="metric-title">Today's Submissions</div>
+            <div class="metric-count">{{ today_reports }}</div>
+        </div>
+        <div class="metric-footer">
+            {% if yesterday_today > 0 %}
+            <span class="trend up">↑ {{ "%.0f"|format(((today_reports - yesterday_today) / yesterday_today * 100)|abs) }}%</span>
+            {% else %}<span class="trend up">↑ 100%</span>{% endif %}
+            <span class="trend-label">from yesterday</span>
+            <div class="spark-wrap"><canvas id="sparkline2"></canvas></div>
         </div>
     </div>
 
     {% if current_user.has_permission('view_all_reports') or current_user.has_permission('view_dept_reports') %}
-    <!-- Active Employees -->
-    <div class="metric-card">
+    <div class="metric-card neon-blue">
         <div class="metric-top">
-            <div class="metric-icon-wrap" style="background: linear-gradient(135deg,#3b82f6,#06b6d4);">👥</div>
-            <span class="metric-dots">⋯</span>
+            <div class="metric-icon-box">👥</div>
+            <div class="metric-menu">⋮</div>
         </div>
-        <div class="metric-label">Active Employees</div>
-        <div class="metric-value">{{ unique_employees }}</div>
-        <div class="metric-trend">
-            {% if yesterday_employees == unique_employees %}
-                <span class="trend-neutral">No change</span> from yesterday
-            {% else %}
-                <span class="trend-up">↑ Active</span> employees
-            {% endif %}
-            <svg class="sparkline" viewBox="0 0 60 20"><polyline points="0,16 15,14 30,12 45,8 60,6" fill="none" stroke="#3b82f6" stroke-width="2"/></svg>
+        <div class="metric-info">
+            <div class="metric-title">Active Employees</div>
+            <div class="metric-count">{{ unique_employees }}</div>
+        </div>
+        <div class="metric-footer">
+            <span class="trend neutral">No change</span>
+            <span class="trend-label">from yesterday</span>
+            <div class="spark-wrap"><canvas id="sparkline3"></canvas></div>
         </div>
     </div>
 
-    <!-- Departments -->
-    <div class="metric-card">
+    <div class="metric-card neon-cyan">
         <div class="metric-top">
-            <div class="metric-icon-wrap" style="background: linear-gradient(135deg,#10b981,#059669);">🏢</div>
-            <span class="metric-dots">⋯</span>
+            <div class="metric-icon-box">🏢</div>
+            <div class="metric-menu">⋮</div>
         </div>
-        <div class="metric-label">Departments</div>
-        <div class="metric-value">{{ total_departments }}</div>
-        <div class="metric-trend">
-            <span class="trend-neutral">No change</span> from yesterday
-            <svg class="sparkline" viewBox="0 0 60 20"><polyline points="0,14 15,13 30,13 45,12 60,12" fill="none" stroke="#10b981" stroke-width="2"/></svg>
+        <div class="metric-info">
+            <div class="metric-title">Departments</div>
+            <div class="metric-count">{{ total_departments }}</div>
+        </div>
+        <div class="metric-footer">
+            <span class="trend neutral">No change</span>
+            <span class="trend-label">from yesterday</span>
+            <div class="spark-wrap"><canvas id="sparkline4"></canvas></div>
         </div>
     </div>
     {% endif %}
 </div>
 
-<!-- Action Panels -->
-<div class="action-panels">
-    <!-- Quick Actions -->
-    <div class="action-panel glass-panel">
-        <div class="panel-icon-wrap"><span style="font-size:1.5rem">⚡</span></div>
-        <div class="panel-body">
-            <h2>Quick Actions</h2>
-            <p>Create new reports or explore existing ones.</p>
-            <div class="panel-buttons">
-                {% if current_user.has_permission('submit_report') %}
-                <a href="{{ url_for('submit') }}" class="btn btn-primary">+ Submit New Report</a>
-                {% endif %}
-                <a href="{{ url_for('view_reports') }}" class="btn btn-outline-white">🗂 Browse Reports</a>
-            </div>
+<!-- Middle Section: Charts & Quick Actions -->
+<div class="dashboard-middle-row">
+    <!-- Reports Chart -->
+    <div class="glass-panel chart-panel">
+        <div class="panel-header">
+            <h3>Reports Submitted <span class="text-muted">(Last 7 Days)</span></h3>
+            <select class="select-mini">
+                <option>Last 7 Days</option>
+                <option>Last 30 Days</option>
+            </select>
         </div>
-        <div class="panel-illustration">
-            <div class="illus-doc">
-                <div class="illus-doc-inner">
-                    <div class="illus-line"></div>
-                    <div class="illus-line short"></div>
-                    <div class="illus-line"></div>
-                </div>
-                <div class="illus-plus">+</div>
-            </div>
+        <div class="chart-container-main">
+            <canvas id="mainSubmissionsChart"></canvas>
         </div>
     </div>
 
-    <!-- Due Reports Today -->
-    <div class="action-panel glass-panel">
-        <div class="panel-icon-wrap"><span style="font-size:1.5rem">🕐</span></div>
-        <div class="panel-body">
-            <h2>Due Reports Today</h2>
+    <!-- Status Circle & Actions -->
+    <div class="status-actions-col">
+        <div class="glass-panel status-panel">
+            <h3>Today's Status</h3>
+            <div class="status-circle-wrap">
+                <div class="status-circle">
+                    <div class="status-check">✓</div>
+                </div>
+                <div class="status-particles"></div>
+            </div>
             {% if is_holiday %}
-                <p>Today is marked as a Holiday. No reports due.</p>
-            {% elif due_employees %}
-                <p>{{ due_employees|length }} employee(s) haven't submitted today:</p>
-                <ul class="due-list">
-                    {% for emp in due_employees[:4] %}
-                    <li><span class="badge badge-status-rejected">Due</span> {{ emp.full_name or emp.username }}</li>
-                    {% endfor %}
-                    {% if due_employees|length > 4 %}<li style="color:#94a3b8">+{{ due_employees|length - 4 }} more...</li>{% endif %}
-                </ul>
+            <h4>Today is a Holiday! 🥳</h4>
+            <p>Enjoy your break, no reports due today.</p>
+            {% elif not due_employees %}
+            <h4>All Reports Submitted! 🎉</h4>
+            <p>Great job! All employees have submitted their reports today.</p>
             {% else %}
-                <p>All employees have submitted their reports today!</p>
-                <div class="all-done-icon">✅</div>
+            <h4>{{ due_employees|length }} Pending Reports</h4>
+            <p>{{ due_employees|length }} employee(s) haven't submitted yet.</p>
             {% endif %}
+        </div>
+
+        <div class="glass-panel quick-actions-panel">
+            <div class="panel-title-row">
+                <span class="bolt-icon">⚡</span>
+                <h3>Quick Actions</h3>
+            </div>
+            <div class="actions-buttons-stack">
+                <a href="{{ url_for('submit') }}" class="btn btn-primary-gradient">+ Submit New Report</a>
+                <a href="{{ url_for('view_reports') }}" class="btn btn-dark-glass">📂 Browse Reports</a>
+                {% if current_user.has_permission('view_analytics') %}
+                <a href="{{ url_for('analytics') }}" class="btn btn-dark-glass">📊 View Analytics</a>
+                {% endif %}
+            </div>
         </div>
     </div>
 </div>
 
-<!-- Bottom Panels -->
-<div class="bottom-panels">
+<!-- Bottom Row: Activity, Performance, Upcoming -->
+<div class="dashboard-bottom-row">
     <!-- Recent Activity -->
-    <div class="glass-panel bottom-panel">
-        <div class="bottom-panel-header">
-            <span>📄</span>
+    <div class="glass-panel activity-panel">
+        <div class="panel-header">
             <h3>Recent Activity</h3>
         </div>
-        <div class="activity-list">
+        <div class="activity-items">
             {% for report in recent_activity %}
-            <div class="activity-item">
-                <div class="activity-icon">📝</div>
-                <div class="activity-body">
-                    <div class="activity-title">Report submitted</div>
-                    <div class="activity-sub">By {{ report.employee_name }} — {{ report.department }}</div>
+            <div class="activity-row">
+                <div class="activity-icon-circle purple">📄</div>
+                <div class="activity-details">
+                    <div class="activity-text"><strong>Report submitted</strong></div>
+                    <div class="activity-sub">A new report has been submitted by {{ report.employee_name }}.</div>
                 </div>
-                <div class="activity-right">
-                    <div class="activity-date">{{ report.date_submitted.strftime('%d %b, %Y') }}</div>
-                    <span class="activity-dot {% if report.status == 'Approved' %}dot-green{% elif report.status == 'Rejected' %}dot-red{% else %}dot-yellow{% endif %}"></span>
+                <div class="activity-time-dot">
+                    <span class="time">2 mins ago</span>
+                    <span class="dot green"></span>
                 </div>
             </div>
-            {% else %}
-            <p class="text-muted text-center" style="padding:2rem 0">No activity yet.</p>
             {% endfor %}
         </div>
-        <a href="{{ url_for('view_reports') }}" class="panel-footer-link">View All Activity →</a>
+        <a href="{{ url_for('view_reports') }}" class="view-all-link">View All Activity →</a>
     </div>
 
-    <!-- Upcoming Due Reports -->
-    <div class="glass-panel bottom-panel">
-        <div class="bottom-panel-header">
-            <span>📅</span>
-            <h3>Upcoming Due Reports</h3>
+    <!-- Department Performance -->
+    {% if current_user.has_permission('view_all_reports') or current_user.has_permission('view_dept_reports') %}
+    <div class="glass-panel performance-panel">
+        <div class="panel-header">
+            <h3>Department Performance</h3>
+            <select class="select-mini">
+                <option>This Month</option>
+            </select>
         </div>
-        <div class="activity-list">
-            {% if is_holiday %}
-            <div class="all-done-wrap">
-                <div class="all-done-icon">🎉</div>
-                <p>Today is a holiday!</p>
-            </div>
-            {% elif due_employees %}
-            {% for emp in due_employees[:4] %}
-            <div class="activity-item">
-                <div class="activity-icon">📅</div>
-                <div class="activity-body">
-                    <div class="activity-title">{{ emp.full_name or emp.username }}</div>
-                    <div class="activity-sub">Daily report overdue</div>
+        <div class="performance-list">
+            {% for dept in dept_performance %}
+            <div class="perf-row">
+                <div class="perf-name">{{ dept.name }}</div>
+                <div class="perf-bar-wrap">
+                    <div class="perf-bar" style="width: {{ (dept.count / (dept_performance[0].count if dept_performance[0].count > 0 else 1) * 100)|round }}%; background: var(--perf-color-{{ loop.index0 % 4 }});"></div>
                 </div>
-                <div class="activity-right">
-                    <span class="badge badge-status-rejected">Due</span>
+                <div class="perf-stats">
+                    <span class="count">{{ dept.count }}</span>
+                    <span class="trend {{ 'up' if dept.change >= 0 else 'down' }}">
+                        {{ '↑' if dept.change >= 0 else '↓' }} {{ dept.change|abs }}%
+                    </span>
                 </div>
             </div>
             {% endfor %}
-            {% else %}
-            <div class="all-done-wrap">
-                <div class="all-done-icon">✅</div>
-                <p>No upcoming due reports.<br><small>Great job! All reports are up to date.</small></p>
+        </div>
+        <a href="{{ url_for('analytics') }}" class="view-all-link">View Full Analytics →</a>
+    </div>
+    {% endif %}
+
+    <!-- Upcoming Due -->
+    <div class="glass-panel upcoming-panel">
+        <div class="panel-header">
+            <h3>Upcoming Due Reports</h3>
+        </div>
+        <div class="upcoming-content">
+            <div class="calendar-illus">
+                <div class="cal-body">
+                    <div class="cal-header"></div>
+                    <div class="cal-dots">
+                        <span></span><span></span><span></span>
+                    </div>
+                </div>
             </div>
+            {% if due_employees %}
+            <p><strong>{{ due_employees|length }} reports overdue</strong></p>
+            <ul class="overdue-mini-list">
+                {% for emp in due_employees[:3] %}
+                <li>{{ emp.full_name or emp.username }}</li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p><strong>No upcoming due reports</strong></p>
+            <p class="text-muted">You're all caught up!</p>
             {% endif %}
         </div>
-        {% if current_user.has_permission('manage_holidays') %}
-        <a href="{{ url_for('admin_holidays') }}" class="panel-footer-link">View Calendar →</a>
-        {% endif %}
+        <a href="{{ url_for('admin_holidays') }}" class="view-all-link">View Calendar →</a>
     </div>
 </div>
 
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Main Submissions Chart
+    const ctx = document.getElementById('mainSubmissionsChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: {{ chart_labels | tojson }},
+            datasets: [{
+                label: 'Reports',
+                data: {{ chart_data | tojson }},
+                borderColor: '#8b5cf6',
+                borderWidth: 3,
+                pointBackgroundColor: '#8b5cf6',
+                pointBorderColor: '#fff',
+                pointHoverRadius: 6,
+                tension: 0.4,
+                fill: true,
+                backgroundColor: 'rgba(139, 92, 246, 0.1)'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { display: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#64748b' } },
+                x: { display: true, grid: { display: false }, ticks: { color: '#64748b' } }
+            }
+        }
+    });
+
+    // Helper for sparklines
+    function createSparkline(id, color) {
+        const sctx = document.getElementById(id).getContext('2d');
+        new Chart(sctx, {
+            type: 'line',
+            data: {
+                labels: [1, 2, 3, 4, 5, 6, 7],
+                datasets: [{
+                    data: [12, 19, 15, 25, 22, 30, 28], // Dummy trend
+                    borderColor: color,
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    tension: 0.4,
+                    fill: false
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false }, tooltip: { enabled: false } },
+                scales: { x: { display: false }, y: { display: false } }
+            }
+        });
+    }
+
+    createSparkline('sparkline1', '#8b5cf6');
+    createSparkline('sparkline2', '#f59e0b');
+    createSparkline('sparkline3', '#3b82f6');
+    createSparkline('sparkline4', '#06b6d4');
+});
+</script>
 {% endblock %}
