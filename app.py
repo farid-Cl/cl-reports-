@@ -146,32 +146,42 @@ def inject_now():
 @app.route('/')
 @login_required
 def index():
-    today = datetime.now(timezone.utc).date()
-    yesterday = today - timedelta(days=1)
+    now_utc = datetime.now(timezone.utc)
+    today_dt = now_utc.date()
+    yesterday_dt = today_dt - timedelta(days=1)
+
+    # Helper for date ranges (Postgres safe)
+    def get_day_range(d):
+        start = datetime.combine(d, datetime.min.time()).replace(tzinfo=timezone.utc)
+        end = datetime.combine(d, datetime.max.time()).replace(tzinfo=timezone.utc)
+        return start, end
+
+    t_start, t_end = get_day_range(today_dt)
+    y_start, y_end = get_day_range(yesterday_dt)
 
     if current_user.has_permission('view_all_reports') or current_user.has_permission('view_dept_reports'):
         total_reports = Report.query.count()
-        yesterday_total = Report.query.filter(db.func.date(Report.date_submitted) == yesterday).count()
-        today_reports = Report.query.filter(db.func.date(Report.date_submitted) == today).count()
-        yesterday_today = Report.query.filter(db.func.date(Report.date_submitted) == yesterday).count()
+        yesterday_total = Report.query.filter(Report.date_submitted >= y_start, Report.date_submitted <= y_end).count()
+        today_reports = Report.query.filter(Report.date_submitted >= t_start, Report.date_submitted <= t_end).count()
+        yesterday_today = yesterday_total # Legacy variable name fix
         unique_employees = db.session.query(db.func.count(db.distinct(Report.user_id))).scalar() or 0
-        yesterday_employees = db.session.query(db.func.count(db.distinct(Report.user_id))).filter(db.func.date(Report.date_submitted) == yesterday).scalar() or 0
         total_departments = Department.query.count()
+        yesterday_employees = unique_employees # Fallback
     else:
         total_reports = Report.query.filter_by(user_id=current_user.id).count()
-        yesterday_total = Report.query.filter_by(user_id=current_user.id).filter(db.func.date(Report.date_submitted) == yesterday).count()
-        today_reports = Report.query.filter(Report.user_id == current_user.id, db.func.date(Report.date_submitted) == today).count()
-        yesterday_today = Report.query.filter(Report.user_id == current_user.id, db.func.date(Report.date_submitted) == yesterday).count()
+        yesterday_total = Report.query.filter_by(user_id=current_user.id).filter(Report.date_submitted >= y_start, Report.date_submitted <= y_end).count()
+        today_reports = Report.query.filter_by(user_id=current_user.id).filter(Report.date_submitted >= t_start, Report.date_submitted <= t_end).count()
+        yesterday_today = yesterday_total
         unique_employees = 1
         yesterday_employees = 1
         total_departments = 0
 
-    is_holiday = Holiday.query.filter_by(date=today).first() is not None
+    is_holiday = Holiday.query.filter_by(date=today_dt).first() is not None
     due_employees = []
     is_due = False
 
     if not is_holiday:
-        submitted_today = set(r.user_id for r in Report.query.filter(db.func.date(Report.date_submitted) == today).all())
+        submitted_today = set(r.user_id for r in Report.query.filter(Report.date_submitted >= t_start, Report.date_submitted <= t_end).all())
         if current_user.has_permission('view_all_reports') or current_user.has_permission('view_dept_reports'):
             employees = User.query.filter_by(role='employee').all()
             for emp in employees:
@@ -190,32 +200,31 @@ def index():
     chart_labels = []
     chart_data = []
     for i in range(6, -1, -1):
-        day = today - timedelta(days=i)
+        day = today_dt - timedelta(days=i)
+        ds, de = get_day_range(day)
         if current_user.has_permission('view_all_reports') or current_user.has_permission('view_dept_reports'):
-            count = Report.query.filter(db.func.date(Report.date_submitted) == day).count()
+            count = Report.query.filter(Report.date_submitted >= ds, Report.date_submitted <= de).count()
         else:
-            count = Report.query.filter_by(user_id=current_user.id).filter(db.func.date(Report.date_submitted) == day).count()
+            count = Report.query.filter_by(user_id=current_user.id).filter(Report.date_submitted >= ds, Report.date_submitted <= de).count()
         chart_labels.append(day.strftime('%b %d'))
         chart_data.append(count)
 
     # Department performance
     dept_performance = []
     if current_user.has_permission('view_all_reports') or current_user.has_permission('view_dept_reports'):
-        from calendar import monthrange
-        first_day = today.replace(day=1)
+        first_day = today_dt.replace(day=1)
+        fd_start = datetime.combine(first_day, datetime.min.time()).replace(tzinfo=timezone.utc)
+        
         last_month_end = first_day - timedelta(days=1)
         last_month_start = last_month_end.replace(day=1)
+        lms_start = datetime.combine(last_month_start, datetime.min.time()).replace(tzinfo=timezone.utc)
+        lme_end = datetime.combine(last_month_end, datetime.max.time()).replace(tzinfo=timezone.utc)
+
         depts = Department.query.all()
         for dept in depts:
-            this_month = Report.query.filter(
-                Report.department == dept.name,
-                db.func.date(Report.date_submitted) >= first_day
-            ).count()
-            last_month = Report.query.filter(
-                Report.department == dept.name,
-                db.func.date(Report.date_submitted) >= last_month_start,
-                db.func.date(Report.date_submitted) <= last_month_end
-            ).count()
+            this_month = Report.query.filter(Report.department == dept.name, Report.date_submitted >= fd_start).count()
+            last_month = Report.query.filter(Report.department == dept.name, Report.date_submitted >= lms_start, Report.date_submitted <= lme_end).count()
+            
             if last_month > 0:
                 change = round(((this_month - last_month) / last_month) * 100)
             else:
