@@ -522,18 +522,63 @@ def delete_department(id):
 @permission_required('manage_users')
 def admin_users():
     if request.method == 'POST':
-        user_id = request.form.get('user_id')
-        new_role = request.form.get('role')
-        user = db.session.get(User, user_id)
-        if user and user.id != current_user.id:
-            user.role = new_role
-            db.session.commit()
-            flash(f"User {user.username} role updated to {new_role}.", 'success')
-        elif user and user.id == current_user.id:
-            flash("Cannot change your own role.", 'danger')
+        action = request.form.get('action', 'update_role')
+        if action == 'update_role':
+            user_id = request.form.get('user_id')
+            new_role = request.form.get('role')
+            user = db.session.get(User, int(user_id))
+            if user and user.id != current_user.id:
+                user.role = new_role
+                db.session.commit()
+                flash(f"User {user.username} role updated to {new_role}.", 'success')
+            elif user and user.id == current_user.id:
+                flash("Cannot change your own role.", 'danger')
         return redirect(url_for('admin_users'))
     users = User.query.all()
     return render_template('admin_users.html', users=users, roles=ROLES.keys())
+
+@app.route('/admin/users/create', methods=['POST'])
+@permission_required('manage_users')
+def admin_create_user():
+    username = request.form.get('username')
+    email = request.form.get('email')
+    full_name = request.form.get('full_name')
+    password = request.form.get('password')
+    role = request.form.get('role', 'employee')
+    if not username or not email or not password:
+        flash('Username, email and password are required.', 'danger')
+        return redirect(url_for('admin_users'))
+    if User.query.filter_by(email=email).first():
+        flash('Email already exists.', 'danger')
+        return redirect(url_for('admin_users'))
+    if User.query.filter_by(username=username).first():
+        flash('Username already exists.', 'danger')
+        return redirect(url_for('admin_users'))
+    new_user = User(
+        username=username, email=email, full_name=full_name,
+        password=generate_password_hash(password), role=role
+    )
+    db.session.add(new_user)
+    db.session.commit()
+    flash(f'User {full_name or username} created successfully.', 'success')
+    return redirect(url_for('admin_users'))
+
+@app.route('/admin/users/<int:id>/edit', methods=['POST'])
+@permission_required('manage_users')
+def edit_user(id):
+    user = db.session.get(User, id)
+    if not user:
+        flash('User not found.', 'danger')
+        return redirect(url_for('admin_users'))
+    user.full_name = request.form.get('full_name', user.full_name)
+    user.email = request.form.get('email', user.email)
+    user.username = request.form.get('username', user.username)
+    new_password = request.form.get('new_password')
+    if new_password:
+        user.password = generate_password_hash(new_password)
+    db.session.commit()
+    flash(f'User {user.username} updated.', 'success')
+    return redirect(url_for('admin_users'))
 
 @app.route('/admin/users/<int:id>/delete', methods=['POST'])
 @permission_required('manage_users')
@@ -547,6 +592,17 @@ def delete_user(id):
         db.session.commit()
         flash("User deleted.", 'success')
     return redirect(url_for('admin_users'))
+
+@app.route('/forgot-password', methods=['GET', 'POST'])
+def forgot_password():
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+    message = None
+    if request.method == 'POST':
+        email = request.form.get('email')
+        user = User.query.filter_by(email=email).first()
+        message = 'If this email exists, please contact your system administrator to reset your password.'
+    return render_template('forgot_password.html', message=message)
 
 @app.route('/admin/holidays', methods=['GET', 'POST'])
 @permission_required('manage_holidays')

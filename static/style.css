@@ -1,4 +1,17 @@
 /* CL Reports Manager — Premium Dark UI */
+/* Fix date picker calendar icon */
+input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+    cursor: pointer;
+    opacity: 0.7;
+}
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+}
+input[type="date"] {
+    color-scheme: dark;
+}
+
 :root {
     --bg:       #080d1a;
     --bg2:      #0d1528;
