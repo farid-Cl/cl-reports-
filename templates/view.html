@@ -6,9 +6,17 @@
         <p class="subtitle">Search, filter, and review submitted reports</p>
     </div>
     {% if current_user.has_permission('export_data') %}
-    <a href="{{ url_for('export', **request_args) }}" class="btn btn-secondary">
-        <span class="icon">⬇️</span> Export CSV
-    </a>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('export', **request_args) }}" class="btn btn-secondary btn-sm" title="Export as CSV">
+            CSV
+        </a>
+        <a href="{{ url_for('export_pdf', **request_args) }}" class="btn btn-secondary btn-sm" title="Export as PDF">
+            PDF
+        </a>
+        <a href="{{ url_for('export_docx', **request_args) }}" class="btn btn-secondary btn-sm" title="Export as DOCX">
+            DOCX
+        </a>
+    </div>
     {% endif %}
 </div>
 

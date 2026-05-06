@@ -9,6 +9,9 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
+import io
+from fpdf import FPDF
+from docx import Document
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -31,7 +34,7 @@ UPLOAD_FOLDER = os.path.join(app.root_path, 'uploads')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024 * 10 # 50 MB total to allow multiple files
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'txt'}
 
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
@@ -404,6 +407,61 @@ def export():
             
     response = Response(generate(), mimetype='text/csv')
     response.headers.set('Content-Disposition', f'attachment; filename=reports_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv')
+    return response
+
+@app.route('/export/pdf')
+@permission_required('export_data')
+def export_pdf():
+    department = request.args.get('department', '')
+    query = Report.query
+    if department:
+        query = query.filter(Report.department.ilike(f'%{department}%'))
+    reports = query.order_by(Report.date_submitted.desc()).all()
+
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("helvetica", size=12)
+    pdf.cell(200, 10, txt="Reports Export", align='C')
+    pdf.ln(10)
+    
+    for r in reports:
+        pdf.set_font("helvetica", style='B', size=10)
+        pdf.cell(0, 10, txt=f"ID: {r.id} | {r.employee_name} ({r.department}) | Status: {r.status}", align='L')
+        pdf.ln(8)
+        pdf.set_font("helvetica", size=9)
+        pdf.multi_cell(0, 6, txt=f"Submitted: {r.date_submitted.strftime('%Y-%m-%d %H:%M:%S')}\n{r.report_text}")
+        pdf.ln(5)
+        
+    pdf_bytes = pdf.output()
+    response = Response(bytes(pdf_bytes), mimetype='application/pdf')
+    response.headers.set('Content-Disposition', f'attachment; filename=reports_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf')
+    return response
+
+@app.route('/export/docx')
+@permission_required('export_data')
+def export_docx():
+    department = request.args.get('department', '')
+    query = Report.query
+    if department:
+        query = query.filter(Report.department.ilike(f'%{department}%'))
+    reports = query.order_by(Report.date_submitted.desc()).all()
+
+    doc = Document()
+    doc.add_heading('Reports Export', 0)
+    
+    for r in reports:
+        p = doc.add_paragraph()
+        p.add_run(f"ID: {r.id} | {r.employee_name} ({r.department}) | Status: {r.status}").bold = True
+        doc.add_paragraph(f"Submitted: {r.date_submitted.strftime('%Y-%m-%d %H:%M:%S')}")
+        doc.add_paragraph(r.report_text)
+        doc.add_paragraph("-" * 40)
+        
+    f = io.BytesIO()
+    doc.save(f)
+    f.seek(0)
+    
+    response = Response(f.read(), mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+    response.headers.set('Content-Disposition', f'attachment; filename=reports_{datetime.now().strftime("%Y%m%d_%H%M%S")}.docx')
     return response
 
 @app.route('/audit-log')

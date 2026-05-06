@@ -61,9 +61,17 @@
         <h3>Attachments ({{ images|length }})</h3>
         <div class="attachments-grid">
             {% for img in images %}
+            {% set ext = img.split('.')[-1]|lower %}
+            {% if ext in ['png', 'jpg', 'jpeg', 'gif', 'webp'] %}
             <a href="{{ url_for('uploaded_file', filename=img) }}" target="_blank" class="attachment-item">
                 <img src="{{ url_for('uploaded_file', filename=img) }}" alt="Attachment" loading="lazy">
             </a>
+            {% else %}
+            <a href="{{ url_for('uploaded_file', filename=img) }}" target="_blank" class="attachment-item document-attachment">
+                <div class="doc-icon">📄</div>
+                <div class="doc-name" title="{{ img.split('_', 1)[-1] }}">{{ img.split('_', 1)[-1] }}</div>
+            </a>
+            {% endif %}
             {% endfor %}
         </div>
     </div>
