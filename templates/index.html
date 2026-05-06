@@ -132,7 +132,7 @@
             </div>
             <div class="actions-buttons-stack">
                 <a href="{{ url_for('submit') }}" class="btn btn-primary-gradient">+ Submit New Report</a>
-                <a href="{{ url_for('view') }}" class="btn btn-dark-glass">📂 Browse Reports</a>
+                <a href="{{ url_for('view_reports') }}" class="btn btn-dark-glass">📂 Browse Reports</a>
                 {% if current_user.has_permission('view_analytics') %}
                 <a href="{{ url_for('analytics') }}" class="btn btn-dark-glass">📊 View Analytics</a>
                 {% endif %}
@@ -163,7 +163,7 @@
             </div>
             {% endfor %}
         </div>
-        <a href="{{ url_for('view') }}" class="view-all-link">View All Activity →</a>
+        <a href="{{ url_for('view_reports') }}" class="view-all-link">View All Activity →</a>
     </div>
 
     <!-- Department Performance -->
