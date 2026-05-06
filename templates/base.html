@@ -9,161 +9,108 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-<body class="dashboard-layout">
-    {% if current_user.is_authenticated %}
-    <!-- Sidebar Navigation -->
-    <aside class="sidebar" id="sidebar">
-        <div class="sidebar-header">
-            <div class="brand">
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <a href="{{ url_for('index') }}">
                 <span class="brand-cl">CL</span>
-                <div class="brand-text">Choice Legacy</div>
-            </div>
+                <span class="brand-sub">Reports<br>Manager</span>
+            </a>
         </div>
 
-        <nav class="sidebar-nav">
-            <a href="{{ url_for('index') }}" class="nav-item {% if request.endpoint == 'index' %}active{% endif %}">
-                <span class="nav-icon">🏠</span>
-                <span class="nav-label">Dashboard</span>
+        {% if current_user.is_authenticated %}
+        <div class="nav-links" id="navLinks">
+            <a href="{{ url_for('index') }}" class="nav-link {% if request.endpoint == 'index' %}active{% endif %}">
+                <span class="nav-icon">🏠</span><span class="nav-text">Dashboard</span>
             </a>
-            <a href="{{ url_for('view_reports') }}" class="nav-item {% if request.endpoint == 'view_reports' %}active{% endif %}">
-                <span class="nav-icon">📄</span>
-                <span class="nav-label">Reports</span>
+            {% if current_user.has_permission('submit_report') %}
+            <a href="{{ url_for('submit') }}" class="nav-link {% if request.endpoint == 'submit' %}active{% endif %}">
+                <span class="nav-icon">✏️</span><span class="nav-text">Submit Report</span>
+            </a>
+            {% endif %}
+            <a href="{{ url_for('view_reports') }}" class="nav-link {% if request.endpoint == 'view_reports' %}active{% endif %}">
+                <span class="nav-icon">📋</span><span class="nav-text">View Reports</span>
             </a>
             {% if current_user.has_permission('view_analytics') %}
-            <a href="{{ url_for('analytics') }}" class="nav-item {% if request.endpoint == 'analytics' %}active{% endif %}">
-                <span class="nav-icon">📊</span>
-                <span class="nav-label">Analytics</span>
+            <a href="{{ url_for('analytics') }}" class="nav-link {% if request.endpoint == 'analytics' %}active{% endif %}">
+                <span class="nav-icon">📊</span><span class="nav-text">Analytics</span>
             </a>
             {% endif %}
             {% if current_user.has_permission('manage_mistakes') %}
-            <a href="{{ url_for('admin_mistakes') }}" class="nav-item {% if request.endpoint == 'admin_mistakes' %}active{% endif %}">
-                <span class="nav-icon">⚠️</span>
-                <span class="nav-label">Mistakes</span>
+            <a href="{{ url_for('admin_mistakes') }}" class="nav-link {% if request.endpoint == 'admin_mistakes' %}active{% endif %}">
+                <span class="nav-icon">⚠️</span><span class="nav-text">Mistakes</span>
             </a>
             {% endif %}
             {% if current_user.has_permission('manage_holidays') %}
-            <a href="{{ url_for('admin_holidays') }}" class="nav-item {% if request.endpoint == 'admin_holidays' %}active{% endif %}">
-                <span class="nav-icon">📅</span>
-                <span class="nav-label">Holidays</span>
+            <a href="{{ url_for('admin_holidays') }}" class="nav-link {% if request.endpoint == 'admin_holidays' %}active{% endif %}">
+                <span class="nav-icon">📅</span><span class="nav-text">Holidays</span>
             </a>
             {% endif %}
             {% if current_user.has_permission('manage_users') %}
-            <a href="{{ url_for('audit_log') }}" class="nav-item {% if request.endpoint == 'audit_log' %}active{% endif %}">
-                <span class="nav-icon">🔍</span>
-                <span class="nav-label">Audit Log</span>
+            <a href="{{ url_for('audit_log') }}" class="nav-link {% if request.endpoint == 'audit_log' %}active{% endif %}">
+                <span class="nav-icon">🔍</span><span class="nav-text">Audit Log</span>
             </a>
-            <a href="{{ url_for('admin_users') }}" class="nav-item {% if request.endpoint == 'admin_users' %}active{% endif %}">
-                <span class="nav-icon">👥</span>
-                <span class="nav-label">Admin Users</span>
+            <a href="{{ url_for('admin_users') }}" class="nav-link {% if request.endpoint == 'admin_users' %}active{% endif %}">
+                <span class="nav-icon">👥</span><span class="nav-text">Admin Users</span>
             </a>
-            <a href="{{ url_for('admin_roles') }}" class="nav-item {% if request.endpoint == 'admin_roles' %}active{% endif %}">
-                <span class="nav-icon">🎭</span>
-                <span class="nav-label">Roles</span>
+            <a href="{{ url_for('admin_roles') }}" class="nav-link {% if request.endpoint == 'admin_roles' %}active{% endif %}">
+                <span class="nav-icon">🎭</span><span class="nav-text">Roles</span>
             </a>
-            <a href="{{ url_for('admin_departments') }}" class="nav-item {% if request.endpoint == 'admin_departments' %}active{% endif %}">
-                <span class="nav-icon">🏢</span>
-                <span class="nav-label">Departments</span>
+            <a href="{{ url_for('admin_departments') }}" class="nav-link {% if request.endpoint == 'admin_departments' %}active{% endif %}">
+                <span class="nav-icon">🏢</span><span class="nav-text">Admin Depts</span>
             </a>
             {% endif %}
-        </nav>
-
-        <div class="sidebar-footer">
-            <a href="#" class="nav-item">
-                <span class="nav-icon">⚙️</span>
-                <span class="nav-label">Settings</span>
-            </a>
-            <button class="sidebar-toggle" id="sidebarCollapse">
-                <span class="nav-icon">«</span>
-            </button>
         </div>
-    </aside>
 
-    <!-- Main Content Area -->
-    <div class="main-wrapper">
-        <!-- Top Header -->
-        <header class="top-header">
-            <div class="search-bar">
-                <span class="search-icon">🔍</span>
-                <input type="text" placeholder="Search reports, employees, etc...">
+        <div class="nav-user">
+            <div class="user-avatar">{{ (current_user.full_name or current_user.username)[:2]|upper }}</div>
+            <div class="user-info">
+                <span class="user-name">Hi, {{ current_user.full_name or current_user.username }}</span>
+                <span class="user-role">{{ current_user.role|capitalize }}</span>
             </div>
-            
-            <div class="header-actions">
-                <div class="notification-bell">
-                    <span class="bell-icon">🔔</span>
-                    <span class="notification-badge">3</span>
-                </div>
-                <div class="theme-toggle">
-                    <span class="moon-icon">🌙</span>
-                </div>
-                <div class="user-profile">
-                    <div class="user-avatar-small">{{ (current_user.full_name or current_user.username)[:2]|upper }}</div>
-                    <div class="user-meta">
-                        <span class="profile-name">{{ current_user.full_name or current_user.username }}</span>
-                        <span class="profile-role">{{ current_user.role|capitalize }}</span>
-                    </div>
-                    <a href="{{ url_for('logout') }}" class="logout-mini" title="Logout">🚪</a>
-                </div>
-            </div>
-        </header>
+            <a href="{{ url_for('logout') }}" class="btn-logout">Logout →</a>
+        </div>
+        {% else %}
+        <div class="nav-links" id="navLinks">
+            <a href="{{ url_for('login') }}" class="nav-link">Login</a>
+            <a href="{{ url_for('signup') }}" class="nav-link">Sign Up</a>
+        </div>
+        {% endif %}
 
-        <main class="content-body">
-            {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                    <div class="alerts">
-                        {% for category, message in messages %}
-                            <div class="alert alert-{{ category }}">
-                                {{ message }}
-                                <button class="close-alert">&times;</button>
-                            </div>
-                        {% endfor %}
-                    </div>
-                {% endif %}
-            {% endwith %}
-    {% else %}
-    <!-- Login/Signup Layout -->
-    <main class="auth-wrapper">
+        <button class="mobile-menu-toggle" id="mobileToggle" aria-label="Toggle navigation">
+            <span class="hamburger"></span>
+            <span class="hamburger"></span>
+            <span class="hamburger"></span>
+        </button>
+    </nav>
+
+    <main class="container">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 <div class="alerts">
                     {% for category, message in messages %}
                         <div class="alert alert-{{ category }}">
                             {{ message }}
+                            <button class="close-alert">&times;</button>
                         </div>
                     {% endfor %}
                 </div>
             {% endif %}
         {% endwith %}
-    {% endif %}
 
-    {% block content %}{% endblock %}
-
-    {% if current_user.is_authenticated %}
-        </main>
-    </div>
-    {% else %}
+        {% block content %}{% endblock %}
     </main>
-    {% endif %}
 
     <script src="{{ url_for('static', filename='script.js') }}"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script>
+    // Initialize flatpickr on all date inputs
     document.addEventListener('DOMContentLoaded', function(){
-        // Initialize flatpickr
         flatpickr('input[type="date"]', {
             dateFormat: 'Y-m-d',
             theme: 'dark',
             allowInput: true
         });
-
-        // Sidebar collapse toggle
-        const sidebar = document.getElementById('sidebar');
-        const collapseBtn = document.getElementById('sidebarCollapse');
-        if (collapseBtn) {
-            collapseBtn.addEventListener('click', () => {
-                sidebar.classList.toggle('collapsed');
-                collapseBtn.querySelector('.nav-icon').textContent = sidebar.classList.contains('collapsed') ? '»' : '«';
-            });
-        }
     });
     </script>
     {% block scripts %}{% endblock %}
