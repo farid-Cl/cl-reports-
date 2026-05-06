@@ -180,7 +180,8 @@
             <div class="perf-row">
                 <div class="perf-name">{{ dept.name }}</div>
                 <div class="perf-bar-wrap">
-                    <div class="perf-bar" style="width: {{ (dept.count / (dept_performance[0].count if dept_performance[0].count > 0 else 1) * 100)|round }}%; background: var(--perf-color-{{ loop.index0 % 4 }});"></div>
+                    {% set max_count = dept_performance[0].count if dept_performance|length > 0 and dept_performance[0].count > 0 else 1 %}
+                    <div class="perf-bar" style="width: {{ (dept.count / max_count * 100)|round }}%; background: var(--perf-color-{{ loop.index0 % 4 }});"></div>
                 </div>
                 <div class="perf-stats">
                     <span class="count">{{ dept.count }}</span>
