@@ -128,20 +128,23 @@ def inject_now():
 @login_required
 def index():
     today = datetime.now(timezone.utc).date()
-    if current_user.has_permission('view_all_reports'):
+    yesterday = today - timedelta(days=1)
+
+    if current_user.has_permission('view_all_reports') or current_user.has_permission('view_dept_reports'):
         total_reports = Report.query.count()
+        yesterday_total = Report.query.filter(db.func.date(Report.date_submitted) == yesterday).count()
         today_reports = Report.query.filter(db.func.date(Report.date_submitted) == today).count()
-        unique_employees = db.session.query(db.func.count(db.distinct(Report.employee_name))).scalar() or 0
+        yesterday_today = Report.query.filter(db.func.date(Report.date_submitted) == yesterday).count()
+        unique_employees = db.session.query(db.func.count(db.distinct(Report.user_id))).scalar() or 0
+        yesterday_employees = db.session.query(db.func.count(db.distinct(Report.user_id))).filter(db.func.date(Report.date_submitted) == yesterday).scalar() or 0
         total_departments = Department.query.count()
-    elif current_user.has_permission('view_dept_reports'):
-        total_reports = Report.query.count()
-        today_reports = Report.query.filter(db.func.date(Report.date_submitted) == today).count()
-        unique_employees = db.session.query(db.func.count(db.distinct(Report.employee_name))).scalar() or 0
-        total_departments = Department.query.count()
-    else: 
+    else:
         total_reports = Report.query.filter_by(user_id=current_user.id).count()
+        yesterday_total = Report.query.filter_by(user_id=current_user.id).filter(db.func.date(Report.date_submitted) == yesterday).count()
         today_reports = Report.query.filter(Report.user_id == current_user.id, db.func.date(Report.date_submitted) == today).count()
+        yesterday_today = Report.query.filter(Report.user_id == current_user.id, db.func.date(Report.date_submitted) == yesterday).count()
         unique_employees = 1
+        yesterday_employees = 1
         total_departments = 0
 
     is_holiday = Holiday.query.filter_by(date=today).first() is not None
@@ -150,7 +153,6 @@ def index():
 
     if not is_holiday:
         submitted_today = set(r.user_id for r in Report.query.filter(db.func.date(Report.date_submitted) == today).all())
-        
         if current_user.has_permission('view_all_reports') or current_user.has_permission('view_dept_reports'):
             employees = User.query.filter_by(role='employee').all()
             for emp in employees:
@@ -160,9 +162,18 @@ def index():
             if current_user.id not in submitted_today:
                 is_due = True
 
-    return render_template('index.html', total_reports=total_reports, today_reports=today_reports, 
-                           unique_employees=unique_employees, total_departments=total_departments,
-                           is_holiday=is_holiday, due_employees=due_employees, is_due=is_due)
+    if current_user.has_permission('view_all_reports') or current_user.has_permission('view_dept_reports'):
+        recent_activity = Report.query.order_by(Report.date_submitted.desc()).limit(5).all()
+    else:
+        recent_activity = Report.query.filter_by(user_id=current_user.id).order_by(Report.date_submitted.desc()).limit(5).all()
+
+    return render_template('index.html',
+                           total_reports=total_reports, yesterday_total=yesterday_total,
+                           today_reports=today_reports, yesterday_today=yesterday_today,
+                           unique_employees=unique_employees, yesterday_employees=yesterday_employees,
+                           total_departments=total_departments,
+                           is_holiday=is_holiday, due_employees=due_employees, is_due=is_due,
+                           recent_activity=recent_activity)
 
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
