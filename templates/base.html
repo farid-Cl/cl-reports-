@@ -6,6 +6,7 @@
     <title>CL Reports Manager</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
@@ -51,6 +52,9 @@
             </a>
             <a href="{{ url_for('admin_users') }}" class="nav-link {% if request.endpoint == 'admin_users' %}active{% endif %}">
                 <span class="nav-icon">👥</span><span class="nav-text">Admin Users</span>
+            </a>
+            <a href="{{ url_for('admin_roles') }}" class="nav-link {% if request.endpoint == 'admin_roles' %}active{% endif %}">
+                <span class="nav-icon">🎭</span><span class="nav-text">Roles</span>
             </a>
             <a href="{{ url_for('admin_departments') }}" class="nav-link {% if request.endpoint == 'admin_departments' %}active{% endif %}">
                 <span class="nav-icon">🏢</span><span class="nav-text">Admin Depts</span>
@@ -98,6 +102,17 @@
     </main>
 
     <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script>
+    // Initialize flatpickr on all date inputs
+    document.addEventListener('DOMContentLoaded', function(){
+        flatpickr('input[type="date"]', {
+            dateFormat: 'Y-m-d',
+            theme: 'dark',
+            allowInput: true
+        });
+    });
+    </script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

@@ -1,0 +1,175 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-header d-flex justify-between align-center">
+    <div>
+        <h1>Role Management</h1>
+        <p class="subtitle">Create custom roles with specific access permissions</p>
+    </div>
+    <button onclick="openModal('createRoleModal')" class="btn btn-primary">+ Create Role</button>
+</div>
+
+<!-- Built-in Roles Reference -->
+<div class="glass-panel mb-4">
+    <h3 style="margin-bottom:1rem;font-size:1rem;">🔒 Built-in Roles (Read Only)</h3>
+    <div class="builtin-roles-grid">
+        {% for role_name, perms in builtin_roles.items() %}
+        <div class="builtin-role-card">
+            <div class="badge badge-role-{{ role_name }}" style="margin-bottom:.75rem;">{{ role_name|title }}</div>
+            <ul class="perm-list">
+                {% for perm in perms %}
+                <li>✅ {{ perm.replace('_',' ')|title }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Custom Roles -->
+{% if custom_roles %}
+<div class="glass-panel mb-4">
+    <h3 style="margin-bottom:1rem;font-size:1rem;">🎨 Custom Roles</h3>
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Role Name</th>
+                    <th>Description</th>
+                    <th>Permissions</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for role in custom_roles %}
+                {% set perms = role.permissions | from_json %}
+                <tr>
+                    <td><strong>{{ role.name }}</strong></td>
+                    <td style="color:var(--muted);font-size:.85rem;">{{ role.description or '—' }}</td>
+                    <td>
+                        <div style="display:flex;flex-wrap:wrap;gap:.3rem;">
+                        {% for p in perms %}
+                            <span class="badge badge-department" style="font-size:.7rem;">{{ p.replace('_',' ')|title }}</span>
+                        {% endfor %}
+                        </div>
+                    </td>
+                    <td>
+                        <div class="d-flex gap-2">
+                            <button onclick="openEditRole({{ role.id }}, '{{ role.name }}', '{{ role.description or '' }}', {{ perms | tojson }})" class="btn btn-sm btn-secondary">Edit</button>
+                            <form action="{{ url_for('delete_role', id=role.id) }}" method="POST" onsubmit="return confirm('Delete role {{ role.name }}?');">
+                                <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% else %}
+<div class="glass-panel mb-4 text-center" style="padding:3rem;color:var(--muted);">
+    <div style="font-size:2.5rem;margin-bottom:1rem;">🎭</div>
+    <p>No custom roles yet. Create one to give employees specific access levels.</p>
+</div>
+{% endif %}
+
+<!-- Create Role Modal -->
+<div id="createRoleModal" class="modal-backdrop" style="display:none;">
+    <div class="modal-box glass-panel" style="max-width:640px;">
+        <div class="modal-header">
+            <h2>Create Custom Role</h2>
+            <button onclick="closeModal('createRoleModal')" class="btn-icon">✕</button>
+        </div>
+        <form action="{{ url_for('admin_roles') }}" method="POST" class="mt-4">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Role Name <span style="color:var(--danger)">*</span></label>
+                    <input type="text" name="name" required placeholder="e.g. Supervisor, Auditor">
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <input type="text" name="description" placeholder="Brief description">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Permissions</label>
+                <div class="perms-grid">
+                    {% for perm_key, perm_label in all_permissions %}
+                    <label class="perm-checkbox">
+                        <input type="checkbox" name="permissions" value="{{ perm_key }}">
+                        <span>{{ perm_label }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary w-100">Create Role</button>
+        </form>
+    </div>
+</div>
+
+<!-- Edit Role Modal -->
+<div id="editRoleModal" class="modal-backdrop" style="display:none;">
+    <div class="modal-box glass-panel" style="max-width:640px;">
+        <div class="modal-header">
+            <h2>Edit Role: <span id="editRoleName"></span></h2>
+            <button onclick="closeModal('editRoleModal')" class="btn-icon">✕</button>
+        </div>
+        <form id="editRoleForm" action="" method="POST" class="mt-4">
+            <div class="form-group">
+                <label>Description</label>
+                <input type="text" name="description" id="editRoleDesc" placeholder="Brief description">
+            </div>
+            <div class="form-group">
+                <label>Permissions</label>
+                <div class="perms-grid" id="editPermsGrid">
+                    {% for perm_key, perm_label in all_permissions %}
+                    <label class="perm-checkbox">
+                        <input type="checkbox" name="permissions" value="{{ perm_key }}" class="edit-perm-cb">
+                        <span>{{ perm_label }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary w-100">Save Changes</button>
+        </form>
+    </div>
+</div>
+
+<style>
+.modal-backdrop{position:fixed;z-index:200;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;}
+.modal-box{width:100%;max-width:550px;position:relative;max-height:90vh;overflow-y:auto;}
+.modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:1rem;}
+.builtin-roles-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;}
+.builtin-role-card{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:10px;padding:1rem;}
+.perm-list{list-style:none;padding:0;display:flex;flex-direction:column;gap:.3rem;font-size:.8rem;color:var(--muted);}
+.perms-grid{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;background:rgba(0,0,0,.2);border-radius:8px;padding:1rem;}
+.perm-checkbox{display:flex;align-items:center;gap:.5rem;cursor:pointer;font-size:.85rem;padding:.35rem .5rem;border-radius:6px;transition:background .2s;}
+.perm-checkbox:hover{background:rgba(99,102,241,.1);}
+.perm-checkbox input[type=checkbox]{accent-color:var(--primary);width:15px;height:15px;cursor:pointer;}
+.badge-role-admin{background:rgba(99,102,241,.2);color:#818cf8;border:1px solid rgba(99,102,241,.3);padding:.3rem .8rem;border-radius:6px;font-size:.85rem;font-weight:600;}
+.badge-role-manager{background:rgba(16,185,129,.15);color:#34d399;border:1px solid rgba(16,185,129,.3);padding:.3rem .8rem;border-radius:6px;font-size:.85rem;font-weight:600;}
+.badge-role-employee{background:rgba(59,130,246,.15);color:#60a5fa;border:1px solid rgba(59,130,246,.3);padding:.3rem .8rem;border-radius:6px;font-size:.85rem;font-weight:600;}
+.badge-role-viewer{background:rgba(148,163,184,.1);color:#94a3b8;border:1px solid rgba(148,163,184,.2);padding:.3rem .8rem;border-radius:6px;font-size:.85rem;font-weight:600;}
+</style>
+
+<script>
+function openModal(id){document.getElementById(id).style.display='flex';}
+function closeModal(id){document.getElementById(id).style.display='none';}
+function openEditRole(id, name, desc, perms){
+    document.getElementById('editRoleName').textContent = name;
+    document.getElementById('editRoleDesc').value = desc;
+    document.getElementById('editRoleForm').action = '/admin/roles/' + id + '/edit';
+    document.querySelectorAll('.edit-perm-cb').forEach(cb => {
+        cb.checked = perms.includes(cb.value);
+    });
+    openModal('editRoleModal');
+}
+window.onclick=function(e){
+    ['createRoleModal','editRoleModal'].forEach(id=>{
+        let m=document.getElementById(id);
+        if(e.target===m) closeModal(id);
+    });
+}
+</script>
+{% endblock %}

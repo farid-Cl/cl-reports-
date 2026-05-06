@@ -57,7 +57,15 @@ class User(UserMixin, db.Model):
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     def has_permission(self, permission):
-        return permission in ROLES.get(self.role, [])
+        # Check built-in roles first
+        if self.role in ROLES:
+            return permission in ROLES.get(self.role, [])
+        # Check custom roles from database
+        custom_role = CustomRole.query.filter_by(name=self.role).first()
+        if custom_role:
+            perms = json.loads(custom_role.permissions or '[]')
+            return permission in perms
+        return False
 
 class Department(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -91,6 +99,13 @@ class MistakeNote(db.Model):
     employee = db.relationship('User', foreign_keys=[employee_id], backref=db.backref('mistakes', lazy=True))
     admin = db.relationship('User', foreign_keys=[admin_id])
 
+class CustomRole(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), unique=True, nullable=False)
+    description = db.Column(db.String(200))
+    permissions = db.Column(db.Text, default='[]')  # JSON list of permission strings
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(User, int(user_id))
@@ -112,6 +127,13 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 # --- ROUTES ---
+
+@app.template_filter('from_json')
+def from_json_filter(value):
+    try:
+        return json.loads(value or '[]')
+    except Exception:
+        return []
 
 @app.route('/health')
 def health():
@@ -603,6 +625,73 @@ def forgot_password():
         user = User.query.filter_by(email=email).first()
         message = 'If this email exists, please contact your system administrator to reset your password.'
     return render_template('forgot_password.html', message=message)
+
+# All available permissions in the system
+ALL_PERMISSIONS = [
+    ('view_all_reports',  'View All Reports'),
+    ('view_dept_reports', 'View Department Reports'),
+    ('view_own_reports',  'View Own Reports'),
+    ('submit_report',     'Submit Reports'),
+    ('view_analytics',    'View Analytics'),
+    ('approve_reports',   'Approve / Reject Reports'),
+    ('delete_reports',    'Delete Reports'),
+    ('export_data',       'Export Data (CSV/PDF/DOCX)'),
+    ('manage_users',      'Manage Users & Roles'),
+    ('manage_departments','Manage Departments'),
+    ('manage_mistakes',   'Manage Mistake Tracker'),
+    ('manage_holidays',   'Manage Holidays'),
+]
+
+@app.route('/admin/roles', methods=['GET', 'POST'])
+@permission_required('manage_users')
+def admin_roles():
+    if request.method == 'POST':
+        name = request.form.get('name', '').strip()
+        description = request.form.get('description', '').strip()
+        selected_perms = request.form.getlist('permissions')
+        if not name:
+            flash('Role name is required.', 'danger')
+            return redirect(url_for('admin_roles'))
+        if name in ROLES:
+            flash(f'"{name}" is a built-in role and cannot be overwritten.', 'danger')
+            return redirect(url_for('admin_roles'))
+        if CustomRole.query.filter_by(name=name).first():
+            flash('A role with this name already exists.', 'danger')
+            return redirect(url_for('admin_roles'))
+        role = CustomRole(name=name, description=description, permissions=json.dumps(selected_perms))
+        db.session.add(role)
+        db.session.commit()
+        flash(f'Role "{name}" created successfully.', 'success')
+        return redirect(url_for('admin_roles'))
+    custom_roles = CustomRole.query.all()
+    return render_template('admin_roles.html', custom_roles=custom_roles,
+                           all_permissions=ALL_PERMISSIONS, builtin_roles=ROLES)
+
+@app.route('/admin/roles/<int:id>/edit', methods=['POST'])
+@permission_required('manage_users')
+def edit_role(id):
+    role = db.session.get(CustomRole, id)
+    if not role:
+        flash('Role not found.', 'danger')
+        return redirect(url_for('admin_roles'))
+    role.description = request.form.get('description', role.description)
+    selected_perms = request.form.getlist('permissions')
+    role.permissions = json.dumps(selected_perms)
+    db.session.commit()
+    flash(f'Role "{role.name}" updated.', 'success')
+    return redirect(url_for('admin_roles'))
+
+@app.route('/admin/roles/<int:id>/delete', methods=['POST'])
+@permission_required('manage_users')
+def delete_role(id):
+    role = db.session.get(CustomRole, id)
+    if role:
+        # Reset any users with this role to 'employee'
+        User.query.filter_by(role=role.name).update({'role': 'employee'})
+        db.session.delete(role)
+        db.session.commit()
+        flash(f'Role "{role.name}" deleted. Affected users reset to Employee.', 'success')
+    return redirect(url_for('admin_roles'))
 
 @app.route('/admin/holidays', methods=['GET', 'POST'])
 @permission_required('manage_holidays')
