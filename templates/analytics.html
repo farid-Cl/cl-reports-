@@ -29,6 +29,29 @@
 </div>
 
 <div class="page-header mt-4">
+    <h2>Company-wide KPI Summary</h2>
+    <p class="subtitle">Average performance vs targets (Last 30 Days)</p>
+</div>
+
+<div class="metrics-grid mb-4">
+    {% for item in kpi_summary %}
+    <div class="metric-card glass-panel">
+        <div class="metric-info">
+            <h3>{{ item.name }}</h3>
+            <p class="metric-value">{{ item.average }}</p>
+            {% if item.target %}
+            <p class="metric-change {% if item.average >= item.target %}text-success{% else %}text-danger{% endif %}">
+                Target: {{ item.target }}
+            </p>
+            {% endif %}
+        </div>
+    </div>
+    {% else %}
+    <p class="text-muted text-center" style="grid-column: 1/-1;">No KPI data logged yet.</p>
+    {% endfor %}
+</div>
+
+<div class="page-header mt-4">
     <h2>Employee Deep-Dive</h2>
     <p class="subtitle">Detailed analytics for individual employees</p>
 </div>
@@ -80,6 +103,13 @@
                 <canvas id="empTrendChart"></canvas>
             </div>
         </div>
+    </div>
+    
+    <div class="page-header mt-4">
+        <h3>KPI Performance (Last 30 Days)</h3>
+    </div>
+    <div class="charts-grid" id="empKpiContainer">
+        <!-- KPI charts will be injected here -->
     </div>
 </div>
 
@@ -224,6 +254,57 @@
                                 }
                             }
                         });
+
+                        // Render KPI Charts
+                        const kpiContainer = document.getElementById('empKpiContainer');
+                        kpiContainer.innerHTML = '';
+                        if(data.kpi_data && data.kpi_data.length > 0) {
+                            data.kpi_data.forEach((kpi, idx) => {
+                                const card = document.createElement('div');
+                                card.className = 'chart-card glass-panel';
+                                card.innerHTML = `<h3>${kpi.name}</h3><div class="chart-container"><canvas id="kpiChart_${idx}"></canvas></div>`;
+                                kpiContainer.appendChild(card);
+                                
+                                const ctx = document.getElementById(`kpiChart_${idx}`);
+                                const datasets = [{
+                                    label: 'Actual',
+                                    data: kpi.actuals,
+                                    borderColor: '#10b981',
+                                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                                    fill: true,
+                                    tension: 0.3
+                                }];
+                                
+                                if(kpi.target) {
+                                    datasets.push({
+                                        label: 'Target',
+                                        data: Array(kpi.actuals.length).fill(kpi.target),
+                                        borderColor: '#f59e0b',
+                                        borderDash: [5, 5],
+                                        pointRadius: 0,
+                                        fill: false
+                                    });
+                                }
+                                
+                                new Chart(ctx, {
+                                    type: 'line',
+                                    data: {
+                                        labels: kpi.dates,
+                                        datasets: datasets
+                                    },
+                                    options: {
+                                        responsive: true,
+                                        maintainAspectRatio: false,
+                                        scales: {
+                                            y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.1)' } },
+                                            x: { grid: { display: false } }
+                                        }
+                                    }
+                                });
+                            });
+                        } else {
+                            kpiContainer.innerHTML = '<p class="text-muted text-center" style="width: 100%;">No KPI data logged for this employee.</p>';
+                        }
                     })
                     .catch(err => console.error('Error fetching employee data:', err));
             });

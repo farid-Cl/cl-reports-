@@ -1,0 +1,111 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-header">
+    <h1>Log Employee KPIs</h1>
+    <p class="subtitle">Enter daily performance metrics for your team members</p>
+</div>
+
+<div class="glass-panel">
+    <form method="POST" action="{{ url_for('manager_kpi_log') }}">
+        <div class="form-row" style="display: flex; gap: 1rem; flex-wrap: wrap;">
+            <div class="form-group" style="flex: 1; min-width: 200px;">
+                <label for="employee_id">Employee</label>
+                <select name="employee_id" id="employee_id" required>
+                    <option value="" disabled selected>Select employee...</option>
+                    {% for emp in employees %}
+                    <option value="{{ emp.id }}">{{ emp.full_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group" style="flex: 1; min-width: 200px;">
+                <label for="department_id">Department (To load KPIs)</label>
+                <select name="department_id" id="department_id" required onchange="showKPIFields()">
+                    <option value="" disabled selected>Select department...</option>
+                    {% for dept in departments %}
+                    <option value="{{ dept.id }}">{{ dept.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group" style="flex: 1; min-width: 200px;">
+                <label for="date">Date</label>
+                <input type="date" name="date" id="date" required value="{{ now.strftime('%Y-%m-%d') }}">
+            </div>
+        </div>
+
+        <div id="kpi-container" class="mt-4">
+            <!-- KPI fields will be injected here via JS -->
+            <p class="text-muted text-center" id="kpi-placeholder">Select a department to view its KPI fields.</p>
+            {% for dept in departments %}
+            <div class="kpi-group" id="kpi-group-{{ dept.id }}" style="display: none;">
+                <h4 class="mb-3">{{ dept.name }} Metrics</h4>
+                {% set dept_kpis = kpis|selectattr('department_id', 'equalto', dept.id)|list %}
+                {% if dept_kpis %}
+                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1rem;">
+                    {% for kpi in dept_kpis %}
+                        <div class="form-group">
+                            <label>{{ kpi.metric_name }} {% if kpi.target_value %}(Target: {{ kpi.target_value }}){% endif %}</label>
+                            <input type="number" step="0.01" name="kpi_{{ kpi.id }}" placeholder="Enter {{ kpi.metric_type }}">
+                        </div>
+                    {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-muted">No KPIs defined for this department.</p>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+
+        <button type="submit" class="btn btn-primary mt-4" id="submit-btn" style="display: none;">Submit KPI Logs</button>
+    </form>
+</div>
+
+<div class="glass-panel mt-4">
+    <h3>Recent KPI Logs</h3>
+    <div style="overflow-x: auto;">
+        <table class="table" style="width: 100%; text-align: left; border-collapse: collapse;">
+            <thead>
+                <tr style="border-bottom: 1px solid var(--glass-border);">
+                    <th style="padding: 10px;">Date</th>
+                    <th style="padding: 10px;">Employee</th>
+                    <th style="padding: 10px;">Metric</th>
+                    <th style="padding: 10px;">Value</th>
+                    <th style="padding: 10px;">Target</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in recent_logs %}
+                <tr style="border-bottom: 1px solid var(--glass-border);">
+                    <td style="padding: 10px;">{{ log.date.strftime('%Y-%m-%d') }}</td>
+                    <td style="padding: 10px;">{{ log.employee.full_name }}</td>
+                    <td style="padding: 10px;">{{ log.kpi_definition.metric_name }}</td>
+                    <td style="padding: 10px;">{{ log.actual_value }}</td>
+                    <td style="padding: 10px;">{{ log.kpi_definition.target_value or '-' }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5" style="padding: 10px; text-align: center;">No logs found.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function showKPIFields() {
+    var deptId = document.getElementById('department_id').value;
+    // Hide all groups
+    var groups = document.querySelectorAll('.kpi-group');
+    groups.forEach(function(el) {
+        el.style.display = 'none';
+    });
+    // Show selected group
+    var selectedGroup = document.getElementById('kpi-group-' + deptId);
+    if (selectedGroup) {
+        selectedGroup.style.display = 'block';
+        document.getElementById('submit-btn').style.display = 'block';
+        document.getElementById('kpi-placeholder').style.display = 'none';
+    }
+}
+</script>
+{% endblock %}

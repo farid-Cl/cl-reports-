@@ -36,14 +36,27 @@
                 <span class="nav-icon">📊</span><span class="nav-text">Analytics</span>
             </a>
             {% endif %}
-            {% if current_user.has_permission('manage_mistakes') %}
-            <a href="{{ url_for('admin_mistakes') }}" class="nav-link {% if request.endpoint == 'admin_mistakes' %}active{% endif %}">
-                <span class="nav-icon">⚠️</span><span class="nav-text">Mistakes</span>
+            {% if current_user.has_permission('manage_performance') %}
+            <a href="{{ url_for('admin_performance') }}" class="nav-link {% if request.endpoint == 'admin_performance' %}active{% endif %}">
+                <span class="nav-icon">📈</span><span class="nav-text">Performance</span>
             </a>
             {% endif %}
             {% if current_user.has_permission('manage_holidays') %}
             <a href="{{ url_for('admin_holidays') }}" class="nav-link {% if request.endpoint == 'admin_holidays' %}active{% endif %}">
                 <span class="nav-icon">📅</span><span class="nav-text">Holidays</span>
+            </a>
+            {% endif %}
+            {% if current_user.has_permission('manage_kpis') %}
+            <a href="{{ url_for('admin_kpis') }}" class="nav-link {% if request.endpoint == 'admin_kpis' %}active{% endif %}">
+                <span class="nav-icon">⚙️</span><span class="nav-text">KPI Setup</span>
+            </a>
+            <a href="{{ url_for('manager_kpi_log') }}" class="nav-link {% if request.endpoint == 'manager_kpi_log' %}active{% endif %}">
+                <span class="nav-icon">📝</span><span class="nav-text">Log KPIs</span>
+            </a>
+            {% endif %}
+            {% if current_user.has_permission('manage_leaves') %}
+            <a href="{{ url_for('leave_requests') }}" class="nav-link {% if request.endpoint == 'leave_requests' %}active{% endif %}">
+                <span class="nav-icon">🏖️</span><span class="nav-text">Leaves</span>
             </a>
             {% endif %}
             {% if current_user.has_permission('manage_users') %}

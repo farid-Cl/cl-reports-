@@ -40,9 +40,9 @@ login_manager.login_message_category = 'info'
 
 # ROLES AND PERMISSIONS
 ROLES = {
-    'admin': ['view_all_reports', 'view_dept_reports', 'view_own_reports', 'submit_report', 'view_analytics', 'manage_users', 'manage_departments', 'export_data', 'delete_reports', 'approve_reports', 'manage_mistakes', 'manage_holidays'],
-    'manager': ['view_dept_reports', 'view_analytics', 'export_data', 'approve_reports', 'manage_mistakes'],
-    'employee': ['view_own_reports', 'submit_report'],
+    'admin': ['view_all_reports', 'view_dept_reports', 'view_own_reports', 'submit_report', 'view_analytics', 'manage_users', 'manage_departments', 'export_data', 'delete_reports', 'approve_reports', 'manage_performance', 'manage_holidays', 'manage_kpis', 'manage_leaves'],
+    'manager': ['view_dept_reports', 'view_analytics', 'export_data', 'approve_reports', 'manage_performance', 'manage_kpis', 'manage_leaves'],
+    'employee': ['view_own_reports', 'submit_report', 'manage_leaves'],
     'viewer': ['view_all_reports', 'view_analytics']
 }
 
@@ -89,15 +89,48 @@ class Holiday(db.Model):
     date = db.Column(db.Date, unique=True, nullable=False)
     description = db.Column(db.String(200))
 
-class MistakeNote(db.Model):
+class PerformanceNote(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     employee_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     admin_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    entry_type = db.Column(db.String(50), default='Improvement') # Improvement, Win
     description = db.Column(db.Text, nullable=False)
     date_logged = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     
-    employee = db.relationship('User', foreign_keys=[employee_id], backref=db.backref('mistakes', lazy=True))
+    employee = db.relationship('User', foreign_keys=[employee_id], backref=db.backref('performance_notes', lazy=True))
     admin = db.relationship('User', foreign_keys=[admin_id])
+
+class KPIDefinition(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    department_id = db.Column(db.Integer, db.ForeignKey('department.id'), nullable=False)
+    metric_name = db.Column(db.String(150), nullable=False)
+    metric_type = db.Column(db.String(50), default='number') # number, percentage, boolean
+    target_value = db.Column(db.Float, nullable=True)
+    
+    department = db.relationship('Department', backref=db.backref('kpis', lazy=True))
+
+class DailyKPILog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    manager_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    date = db.Column(db.Date, nullable=False, default=lambda: datetime.now(timezone.utc).date())
+    kpi_definition_id = db.Column(db.Integer, db.ForeignKey('kpi_definition.id'), nullable=False)
+    actual_value = db.Column(db.Float, nullable=False)
+    
+    employee = db.relationship('User', foreign_keys=[employee_id], backref=db.backref('kpi_logs', lazy=True))
+    manager = db.relationship('User', foreign_keys=[manager_id])
+    kpi_definition = db.relationship('KPIDefinition')
+
+class LeaveRequest(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    start_date = db.Column(db.Date, nullable=False)
+    end_date = db.Column(db.Date, nullable=False)
+    reason = db.Column(db.Text, nullable=False)
+    status = db.Column(db.String(50), default='Pending') # Pending, Approved, Rejected
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    
+    user = db.relationship('User', backref=db.backref('leave_requests', lazy=True))
 
 class CustomRole(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -182,13 +215,22 @@ def index():
 
     if not is_holiday:
         submitted_today = set(r.user_id for r in Report.query.filter(Report.date_submitted >= t_start, Report.date_submitted <= t_end).all())
+        
+        # Check leaves
+        active_leaves = LeaveRequest.query.filter(
+            LeaveRequest.status == 'Approved',
+            LeaveRequest.start_date <= today_dt,
+            LeaveRequest.end_date >= today_dt
+        ).all()
+        on_leave_users = set(l.user_id for l in active_leaves)
+        
         if current_user.has_permission('view_all_reports') or current_user.has_permission('view_dept_reports'):
             employees = User.query.filter_by(role='employee').all()
             for emp in employees:
-                if emp.id not in submitted_today:
+                if emp.id not in submitted_today and emp.id not in on_leave_users:
                     due_employees.append(emp)
         elif current_user.role == 'employee':
-            if current_user.id not in submitted_today:
+            if current_user.id not in submitted_today and current_user.id not in on_leave_users:
                 is_due = True
 
     if current_user.has_permission('view_all_reports') or current_user.has_permission('view_dept_reports'):
@@ -450,14 +492,34 @@ def analytics():
     trend_labels = list(trend_dict.keys())
     trend_data = [trend_dict[k] for k in trend_labels]
 
-    employees = db.session.query(db.distinct(Report.employee_name)).order_by(Report.employee_name).all()
-    employee_names = [e[0] for e in employees]
+    # Fetch all employees for the dropdown
+    employees = User.query.filter_by(role='employee').order_by(User.full_name).all()
+    employee_names = [e.full_name or e.username for e in employees]
+
+    # Company-wide KPI Summary (Average of actual vs target for last 30 days)
+    thirty_days_ago = datetime.now(timezone.utc).date() - timedelta(days=30)
+    company_kpis = db.session.query(
+        KPIDefinition.metric_name,
+        db.func.avg(DailyKPILog.actual_value),
+        KPIDefinition.target_value
+    ).join(DailyKPILog, DailyKPILog.kpi_definition_id == KPIDefinition.id)\
+     .filter(DailyKPILog.date >= thirty_days_ago)\
+     .group_by(KPIDefinition.metric_name, KPIDefinition.target_value).all()
+    
+    kpi_summary = []
+    for name, avg_val, target in company_kpis:
+        kpi_summary.append({
+            'name': name,
+            'average': round(avg_val, 2),
+            'target': target
+        })
 
     return render_template('analytics.html', 
                            dept_labels=json.dumps(dept_labels), dept_data=json.dumps(dept_data),
                            emp_labels=json.dumps(emp_labels), emp_data=json.dumps(emp_data),
                            trend_labels=json.dumps(trend_labels), trend_data=json.dumps(trend_data),
-                           employee_names=employee_names)
+                           employee_names=employee_names,
+                           kpi_summary=kpi_summary)
 
 @app.route('/export')
 @permission_required('export_data')
@@ -686,8 +748,10 @@ ALL_PERMISSIONS = [
     ('export_data',       'Export Data (CSV/PDF/DOCX)'),
     ('manage_users',      'Manage Users & Roles'),
     ('manage_departments','Manage Departments'),
-    ('manage_mistakes',   'Manage Mistake Tracker'),
+    ('manage_performance','Manage Performance Ledger'),
     ('manage_holidays',   'Manage Holidays'),
+    ('manage_kpis',       'Manage KPIs & Entries'),
+    ('manage_leaves',     'Manage Leave Requests'),
 ]
 
 @app.route('/admin/roles', methods=['GET', 'POST'])
@@ -773,37 +837,165 @@ def delete_holiday(id):
         flash('Holiday removed.', 'success')
     return redirect(url_for('admin_holidays'))
 
-@app.route('/admin/mistakes', methods=['GET', 'POST'])
-@permission_required('manage_mistakes')
-def admin_mistakes():
+@app.route('/admin/performance', methods=['GET', 'POST'])
+@permission_required('manage_performance')
+def admin_performance():
     if request.method == 'POST':
         employee_id = request.form.get('employee_id')
+        entry_type = request.form.get('entry_type')
         description = request.form.get('description')
-        if employee_id and description:
-            mistake = MistakeNote(employee_id=employee_id, admin_id=current_user.id, description=description)
-            db.session.add(mistake)
+        if employee_id and description and entry_type:
+            note = PerformanceNote(employee_id=employee_id, admin_id=current_user.id, entry_type=entry_type, description=description)
+            db.session.add(note)
             db.session.commit()
-            flash('Mistake logged.', 'success')
-        return redirect(url_for('admin_mistakes'))
+            flash('Performance entry logged.', 'success')
+        return redirect(url_for('admin_performance'))
         
     employee_filter = request.args.get('employee_id', '')
-    query = MistakeNote.query
+    query = PerformanceNote.query
     if employee_filter:
         query = query.filter_by(employee_id=employee_filter)
         
-    mistakes = query.order_by(MistakeNote.date_logged.desc()).all()
+    notes = query.order_by(PerformanceNote.date_logged.desc()).all()
     employees = User.query.filter_by(role='employee').all()
-    return render_template('admin_mistakes.html', mistakes=mistakes, employees=employees, employee_filter=employee_filter)
+    return render_template('admin_performance.html', notes=notes, employees=employees, employee_filter=employee_filter)
 
-@app.route('/admin/mistakes/<int:id>/delete', methods=['POST'])
-@permission_required('manage_mistakes')
-def delete_mistake(id):
-    mistake = db.session.get(MistakeNote, id)
-    if mistake:
-        db.session.delete(mistake)
+@app.route('/admin/performance/<int:id>/delete', methods=['POST'])
+@permission_required('manage_performance')
+def delete_performance(id):
+    note = db.session.get(PerformanceNote, id)
+    if note:
+        db.session.delete(note)
         db.session.commit()
-        flash('Mistake log deleted.', 'success')
-    return redirect(url_for('admin_mistakes'))
+        flash('Performance log deleted.', 'success')
+    return redirect(url_for('admin_performance'))
+
+@app.route('/admin/kpis', methods=['GET', 'POST'])
+@permission_required('manage_kpis')
+def admin_kpis():
+    if request.method == 'POST':
+        department_id = request.form.get('department_id')
+        metric_name = request.form.get('metric_name')
+        metric_type = request.form.get('metric_type')
+        target_value = request.form.get('target_value')
+        
+        if department_id and metric_name:
+            target = float(target_value) if target_value else None
+            kpi = KPIDefinition(
+                department_id=department_id, 
+                metric_name=metric_name, 
+                metric_type=metric_type, 
+                target_value=target
+            )
+            db.session.add(kpi)
+            db.session.commit()
+            flash('KPI Definition added.', 'success')
+        return redirect(url_for('admin_kpis'))
+        
+    kpis = KPIDefinition.query.all()
+    departments = Department.query.all()
+    return render_template('admin_kpis.html', kpis=kpis, departments=departments)
+
+@app.route('/admin/kpis/<int:id>/delete', methods=['POST'])
+@permission_required('manage_kpis')
+def delete_kpi(id):
+    kpi = db.session.get(KPIDefinition, id)
+    if kpi:
+        db.session.delete(kpi)
+        db.session.commit()
+        flash('KPI Definition deleted.', 'success')
+    return redirect(url_for('admin_kpis'))
+
+@app.route('/manager/kpi_log', methods=['GET', 'POST'])
+@permission_required('manage_kpis')
+def manager_kpi_log():
+    if request.method == 'POST':
+        employee_id = request.form.get('employee_id')
+        date_str = request.form.get('date')
+        
+        if employee_id and date_str:
+            date_val = datetime.strptime(date_str, '%Y-%m-%d').date()
+            logged_count = 0
+            for key, value in request.form.items():
+                if key.startswith('kpi_') and value.strip() != '':
+                    kpi_id = int(key.replace('kpi_', ''))
+                    actual_val = float(value)
+                    
+                    # Check if already logged for this date
+                    existing_log = DailyKPILog.query.filter_by(
+                        employee_id=employee_id, 
+                        date=date_val, 
+                        kpi_definition_id=kpi_id
+                    ).first()
+                    
+                    if existing_log:
+                        existing_log.actual_value = actual_val
+                    else:
+                        new_log = DailyKPILog(
+                            employee_id=employee_id,
+                            manager_id=current_user.id,
+                            date=date_val,
+                            kpi_definition_id=kpi_id,
+                            actual_value=actual_val
+                        )
+                        db.session.add(new_log)
+                    logged_count += 1
+                    
+            if logged_count > 0:
+                db.session.commit()
+                flash(f'Successfully logged {logged_count} KPI metrics.', 'success')
+            else:
+                flash('No KPI metrics were filled out.', 'warning')
+                
+        return redirect(url_for('manager_kpi_log'))
+        
+    employees = User.query.filter_by(role='employee').all()
+    departments = Department.query.all()
+    kpis = KPIDefinition.query.all()
+    recent_logs = DailyKPILog.query.order_by(DailyKPILog.date.desc()).limit(20).all()
+    return render_template('manager_kpi_log.html', employees=employees, departments=departments, kpis=kpis, recent_logs=recent_logs)
+
+@app.route('/leaves', methods=['GET', 'POST'])
+@login_required
+def leave_requests():
+    if request.method == 'POST':
+        start_date_str = request.form.get('start_date')
+        end_date_str = request.form.get('end_date')
+        reason = request.form.get('reason')
+        if start_date_str and end_date_str and reason:
+            start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+            end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+            if end_date < start_date:
+                flash('End date must be after start date.', 'danger')
+            else:
+                leave = LeaveRequest(user_id=current_user.id, start_date=start_date, end_date=end_date, reason=reason)
+                db.session.add(leave)
+                db.session.commit()
+                flash('Leave request submitted successfully.', 'success')
+        return redirect(url_for('leave_requests'))
+        
+    if current_user.has_permission('manage_leaves') and current_user.role != 'employee':
+        leaves = LeaveRequest.query.order_by(LeaveRequest.created_at.desc()).all()
+    else:
+        leaves = LeaveRequest.query.filter_by(user_id=current_user.id).order_by(LeaveRequest.created_at.desc()).all()
+        
+    return render_template('leave_requests.html', leaves=leaves)
+
+@app.route('/leaves/<int:id>/status', methods=['POST'])
+@permission_required('manage_leaves')
+def update_leave_status(id):
+    if current_user.role == 'employee':
+        flash('Permission denied.', 'danger')
+        return redirect(url_for('leave_requests'))
+        
+    leave = db.session.get(LeaveRequest, id)
+    if leave:
+        status = request.form.get('status')
+        if status in ['Approved', 'Rejected']:
+            leave.status = status
+            db.session.commit()
+            flash(f'Leave request {status.lower()}.', 'success')
+    return redirect(url_for('leave_requests'))
 
 @app.route('/api/reports')
 def api_reports():
@@ -829,10 +1021,9 @@ def api_reports():
 @app.route('/api/analytics/employee/<employee_name>')
 @permission_required('view_analytics')
 def api_employee_analytics(employee_name):
+    user = User.query.filter((User.full_name == employee_name) | (User.username == employee_name)).first()
     reports = Report.query.filter_by(employee_name=employee_name).all()
-    if not reports:
-        return jsonify({'error': 'Employee not found or has no reports'}), 404
-        
+    
     total = len(reports)
     approved = sum(1 for r in reports if r.status == 'Approved')
     rejected = sum(1 for r in reports if r.status == 'Rejected')
@@ -851,6 +1042,24 @@ def api_employee_analytics(employee_name):
         if d_str in trend_dict:
             trend_dict[d_str] += 1
             
+    kpi_data = []
+    if user:
+        thirty_days_ago = datetime.now(timezone.utc).date() - timedelta(days=30)
+        logs = DailyKPILog.query.filter(DailyKPILog.employee_id == user.id, DailyKPILog.date >= thirty_days_ago).order_by(DailyKPILog.date.asc()).all()
+        kpi_dict = {}
+        for log in logs:
+            k_id = log.kpi_definition_id
+            if k_id not in kpi_dict:
+                kpi_dict[k_id] = {
+                    'name': log.kpi_definition.metric_name,
+                    'target': log.kpi_definition.target_value,
+                    'actuals': [],
+                    'dates': []
+                }
+            kpi_dict[k_id]['actuals'].append(log.actual_value)
+            kpi_dict[k_id]['dates'].append(log.date.strftime('%Y-%m-%d'))
+        kpi_data = list(kpi_dict.values())
+            
     return jsonify({
         'employee_name': employee_name,
         'total_reports': total,
@@ -860,7 +1069,8 @@ def api_employee_analytics(employee_name):
             'Submitted': submitted
         },
         'trend_labels': list(trend_dict.keys()),
-        'trend_data': list(trend_dict.values())
+        'trend_data': list(trend_dict.values()),
+        'kpi_data': kpi_data
     })
 
 with app.app_context():
