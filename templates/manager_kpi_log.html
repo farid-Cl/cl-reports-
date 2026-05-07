@@ -45,6 +45,9 @@
                         <div class="form-group">
                             <label>{{ kpi.metric_name }} {% if kpi.target_value %}(Target: {{ kpi.target_value }}){% endif %}</label>
                             <input type="number" step="0.01" name="kpi_{{ kpi.id }}" placeholder="Enter {{ kpi.metric_type }}">
+                            {% if kpi.description %}
+                            <p class="small text-muted italic" style="margin-top: 4px;">{{ kpi.description }}</p>
+                            {% endif %}
                         </div>
                     {% endfor %}
                     </div>

@@ -106,6 +106,7 @@ class KPIDefinition(db.Model):
     metric_name = db.Column(db.String(150), nullable=False)
     metric_type = db.Column(db.String(50), default='number') # number, percentage, boolean
     target_value = db.Column(db.Float, nullable=True)
+    description = db.Column(db.Text, nullable=True)
     
     department = db.relationship('Department', backref=db.backref('kpis', lazy=True))
 
@@ -878,6 +879,7 @@ def admin_kpis():
         metric_name = request.form.get('metric_name')
         metric_type = request.form.get('metric_type')
         target_value = request.form.get('target_value')
+        description = request.form.get('description')
         
         if department_id and metric_name:
             target = float(target_value) if target_value else None
@@ -885,7 +887,8 @@ def admin_kpis():
                 department_id=department_id, 
                 metric_name=metric_name, 
                 metric_type=metric_type, 
-                target_value=target
+                target_value=target,
+                description=description
             )
             db.session.add(kpi)
             db.session.commit()
