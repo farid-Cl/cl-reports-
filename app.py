@@ -999,6 +999,27 @@ def update_leave_status(id):
             db.session.commit()
             flash(f'Leave request {status.lower()}.', 'success')
     return redirect(url_for('leave_requests'))
+    
+@app.route('/admin/migrate-db')
+@login_required
+def migrate_db():
+    if current_user.role != 'admin':
+        return "Admin only", 403
+    try:
+        from sqlalchemy import text
+        # Attempt to add the column. Try/Except in case it exists.
+        db.session.execute(text("ALTER TABLE kpi_definition ADD COLUMN IF NOT EXISTS description TEXT"))
+        # IF NOT EXISTS is Postgres specific. For SQLite we handle the error.
+        db.session.commit()
+        return "Migration successful (Postgres style)!"
+    except Exception as e:
+        db.session.rollback()
+        try:
+            db.session.execute(text("ALTER TABLE kpi_definition ADD COLUMN description TEXT"))
+            db.session.commit()
+            return "Migration successful (General style)!"
+        except Exception as e2:
+            return f"Migration failed or already done. Error: {e2}"
 
 @app.route('/api/reports')
 def api_reports():
